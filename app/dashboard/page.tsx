@@ -23,6 +23,8 @@ export default function DashboardPage() {
   const { user: authUser, loading: authLoading } = useAuth();
   const [holdings, setHoldings] = useState<(Holding & { property?: Property })[]>([]);
   const [transactions, setTransactions] = useState<(Transaction & { property?: Property })[]>([]);
+  const [listedProperties, setListedProperties] = useState<Property[]>([]);
+  const [userRole, setUserRole] = useState<"investor" | "owner" | "admin" | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Redirect logged-out users to login
@@ -37,7 +39,33 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
 
-      const [holdingsRes, txRes] = await Promise.all([
+      const metadataRole = typeof user.user_metadata?.role === "string"
+        ? user.user_metadata.role as "investor" | "owner" | "admin"
+        : null;
+      const storedRole = typeof window !== "undefined"
+        ? window.localStorage.getItem("landly-user-role") as "investor" | "owner" | "admin" | null
+        : null;
+
+      if (metadataRole) {
+        setUserRole(metadataRole);
+        window.localStorage.setItem("landly-user-role", metadataRole);
+      } else if (storedRole) {
+        setUserRole(storedRole);
+      }
+
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const resolvedRole = (profileData?.role as "investor" | "owner" | "admin" | undefined) ?? metadataRole ?? storedRole;
+      if (resolvedRole) {
+        setUserRole(resolvedRole);
+        window.localStorage.setItem("landly-user-role", resolvedRole);
+      }
+
+      const [holdingsRes, txRes, listedRes] = await Promise.all([
         supabase
           .from("holdings")
           .select("*, property:properties(*)")
@@ -48,10 +76,16 @@ export default function DashboardPage() {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(10),
+        supabase
+          .from("properties")
+          .select("*")
+          .eq("owner_id", user.id)
+          .order("created_at", { ascending: false }),
       ]);
 
       if (holdingsRes.data) setHoldings(holdingsRes.data);
       if (txRes.data) setTransactions(txRes.data);
+      if (listedRes.data) setListedProperties(listedRes.data);
       setLoading(false);
     }
     load();
@@ -64,6 +98,22 @@ export default function DashboardPage() {
   }, 0);
   const totalGain = totalCurrentValue - totalInvested;
   const gainPct = totalInvested > 0 ? ((totalGain / totalInvested) * 100).toFixed(1) : "0";
+  const isOwner = userRole === "owner";
+  const ownerRaised = listedProperties.reduce((sum, property) => {
+    const listedShares = Math.floor((property.total_shares * (property.fraction_listed ?? 100)) / 100);
+    const soldShares = Math.max(0, listedShares - property.shares_available);
+    return sum + soldShares * property.share_price;
+  }, 0);
+  const liveListings = listedProperties.filter((property) => property.status === "live").length;
+  const pendingListings = listedProperties.filter((property) => property.status === "pending").length;
+
+  const ownerStatusClasses: Record<Property["status"], string> = {
+    pending: "bg-landly-gold/10 text-landly-gold",
+    verified: "bg-landly-green/10 text-landly-green",
+    live: "bg-landly-green/10 text-landly-green",
+    rejected: "bg-landly-red/10 text-landly-red",
+    sold: "bg-landly-slate/20 text-landly-offwhite",
+  };
 
   if (loading) {
     return (
@@ -88,8 +138,114 @@ export default function DashboardPage() {
         >
           {/* header */}
           <motion.div variants={fadeUp(0)}>
-            <h1 className="font-sans text-3xl font-bold text-landly-offwhite">Dashboard</h1>
+            <h1 className="font-sans text-3xl font-bold text-landly-offwhite">
+              {isOwner ? "Owner Dashboard" : "Dashboard"}
+            </h1>
+            <p className="mt-2 text-sm text-landly-slate">
+              {isOwner
+                ? "Track listed properties, review status, and see how much capital each listing has unlocked."
+                : "Monitor your portfolio, holdings, and recent activity in one place."}
+            </p>
           </motion.div>
+
+          {isOwner && (
+            <motion.div variants={fadeUp(0.04)} className="mt-8 grid gap-4 sm:grid-cols-4">
+              {[
+                { label: "Listed Properties", value: listedProperties.length.toString() },
+                { label: "Live Listings", value: liveListings.toString() },
+                { label: "Pending Review", value: pendingListings.toString() },
+                { label: "Capital Unlocked", value: formatINR(ownerRaised) },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/60 p-5"
+                >
+                  <span className="block text-[10px] font-medium uppercase tracking-wider text-landly-slate">
+                    {item.label}
+                  </span>
+                  <span className="mt-1 block font-mono text-xl font-semibold text-landly-gold">
+                    {item.value}
+                  </span>
+                </div>
+              ))}
+            </motion.div>
+          )}
+
+          {isOwner && (
+            <motion.div variants={fadeUp(0.08)} className="mt-10">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="font-sans text-xl font-semibold text-landly-offwhite">Your Listed Properties</h2>
+                  <p className="mt-1 text-sm text-landly-slate">
+                    Each listing shows review status and the capital unlocked so far.
+                  </p>
+                </div>
+                <Link
+                  href="/list-property"
+                  className="inline-flex h-11 items-center justify-center rounded-[var(--radius-land)] bg-landly-green px-5 text-sm font-semibold text-white transition-all hover:brightness-110"
+                >
+                  List Another Property
+                </Link>
+              </div>
+
+              {listedProperties.length === 0 ? (
+                <div className="mt-4 rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/40 p-6">
+                  <p className="text-sm text-landly-slate">
+                    No properties submitted yet. Start your first listing to unlock capital without fully selling your land.
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  {listedProperties.map((property) => {
+                    const listedShares = Math.floor((property.total_shares * (property.fraction_listed ?? 100)) / 100);
+                    const soldShares = Math.max(0, listedShares - property.shares_available);
+                    const amountRaised = soldShares * property.share_price;
+
+                    return (
+                      <Link
+                        key={property.id}
+                        href={`/property/${property.id}`}
+                        className="group rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/50 p-5 transition-all hover:border-landly-slate/25"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h3 className="font-sans text-base font-semibold text-landly-offwhite transition-colors group-hover:text-landly-gold">
+                              {property.title}
+                            </h3>
+                            <p className="mt-1 text-xs text-landly-slate">{property.location}</p>
+                          </div>
+                          <span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${ownerStatusClasses[property.status]}`}>
+                            {property.status}
+                          </span>
+                        </div>
+
+                        <div className="mt-5 grid grid-cols-3 gap-3">
+                          <div>
+                            <span className="block font-mono text-sm font-semibold text-landly-gold">
+                              {formatINR(amountRaised)}
+                            </span>
+                            <span className="block text-[10px] uppercase tracking-wider text-landly-slate">Raised</span>
+                          </div>
+                          <div>
+                            <span className="block font-mono text-sm font-semibold text-landly-offwhite">
+                              {soldShares}
+                            </span>
+                            <span className="block text-[10px] uppercase tracking-wider text-landly-slate">Shares Sold</span>
+                          </div>
+                          <div>
+                            <span className="block font-mono text-sm font-semibold text-landly-offwhite">
+                              {property.fraction_listed}%
+                            </span>
+                            <span className="block text-[10px] uppercase tracking-wider text-landly-slate">Listed</span>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
+          )}
 
           {/* portfolio summary */}
           <motion.div variants={fadeUp(0.05)} className="mt-8 grid gap-4 sm:grid-cols-4">

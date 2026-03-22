@@ -36,7 +36,8 @@ export async function POST(request: Request) {
     const totalSharesValue = parseNumeric(body.totalShares);
     const sharePrice = parseNumeric(body.sharePrice);
     const fractionPercentValue = body.fractionPercent === undefined
-      ? 100
+      // Demo default: expose partial ownership immediately until the owner flow supports custom retention.
+      ? 60
       : parseNumeric(body.fractionPercent);
     const estimatedYield = parseNumeric(body.estimatedYield);
 

@@ -90,7 +90,7 @@ export default function LiveTicker() {
               transition={{ duration: 0.3 }}
               className="truncate text-sm text-landly-offwhite/80"
             >
-              <span className="font-semibold text-landly-offwhite">{current.user_name}</span>{" "}
+                <span className="font-semibold text-landly-offwhite">{current.user_name || "Demo Investor"}</span>{" "}
               bought{" "}
               <span className="font-mono font-semibold text-landly-gold">{current.shares}</span>{" "}
               shares of{" "}

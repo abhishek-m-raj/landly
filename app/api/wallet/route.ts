@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   const supabase = createAuthClient(request);
+  const MAX_WALLET_TOP_UP = 100000;
   try {
     const body = await request.json();
     const requestedUserId = typeof body.userId === 'string' ? body.userId : null;
@@ -33,6 +34,13 @@ export async function POST(request: Request) {
     const addAmount = typeof amountValue === 'number' && Number.isFinite(amountValue) && amountValue > 0
       ? amountValue
       : 10000;
+
+    if (addAmount > MAX_WALLET_TOP_UP) {
+      return NextResponse.json(
+        { error: `Amount exceeds the maximum top-up of ₹${MAX_WALLET_TOP_UP.toLocaleString('en-IN')}` },
+        { status: 400 }
+      );
+    }
 
     const {
       data: { user },

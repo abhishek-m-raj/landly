@@ -9,9 +9,21 @@ import { useAuth } from "@/app/components/AuthProvider";
 import AuthGateModal from "@/app/components/AuthGateModal";
 
 const TYPE_COLORS: Record<string, string> = {
-  agricultural: "bg-emerald-600/80",
-  residential: "bg-sky-600/80",
+  agricultural: "bg-landly-green/80",
+  residential: "bg-landly-slate/80",
   commercial: "bg-landly-gold/80",
+};
+
+const ESTIMATED_YIELDS: Record<Property["type"], number> = {
+  agricultural: 8.4,
+  residential: 7.1,
+  commercial: 9.2,
+};
+
+const INVESTMENT_THESES: Record<Property["type"], string> = {
+  agricultural: "Income potential from productive farmland and long-hold appreciation.",
+  residential: "Exposure to urban housing demand in high-growth residential corridors.",
+  commercial: "Yield-led access to business assets with stronger income visibility.",
 };
 
 export default function PropertyCard({
@@ -24,6 +36,8 @@ export default function PropertyCard({
   const { user } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const sold = percentSold(property);
+  const estimatedYield = property.estimated_yield ?? ESTIMATED_YIELDS[property.type];
+  const isVerified = ["verified", "live", "sold"].includes(property.status);
 
   return (
     <motion.div
@@ -65,6 +79,20 @@ export default function PropertyCard({
               {property.title}
             </h3>
             <p className="mt-1 text-xs text-landly-slate">{property.location}</p>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 rounded-full bg-landly-green/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-landly-green">
+                <span className="text-xs">✓</span>
+                {isVerified ? "Verified" : "Reviewing"}
+              </span>
+              <span className="inline-flex items-center rounded-full bg-landly-gold/10 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-landly-gold">
+                ~{estimatedYield.toFixed(1)}% est. yield
+              </span>
+            </div>
+
+            <p className="mt-3 text-sm leading-relaxed text-landly-slate">
+              {INVESTMENT_THESES[property.type]}
+            </p>
 
             {/* key figures */}
             <div className="mt-4 grid grid-cols-3 gap-2">

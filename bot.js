@@ -1,9 +1,9 @@
 /**
  * bot.js — Demo transaction simulator for Landly
  *
- * Reads Supabase credentials from .env.local and inserts
- * fake buy-transactions at random intervals so the frontend
- * realtime activity feed has data to display.
+ * Reads Supabase credentials from .env.local and records
+ * fake buy-transactions through a transactional RPC so the
+ * frontend realtime activity feed stays consistent.
  *
  * Usage:  node bot.js
  */
@@ -34,10 +34,10 @@ function loadEnv() {
 loadEnv();
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseKey || supabaseUrl === 'placeholder-url') {
-  console.error('❌  Set real Supabase credentials in .env.local first.');
+  console.error('❌  Set real Supabase credentials in .env.local first, including SUPABASE_SERVICE_ROLE_KEY.');
   process.exit(1);
 }
 
@@ -85,31 +85,18 @@ async function run() {
     const shares = randomInt(1, Math.min(3, prop.shares_available));
     const userName = randomItem(NAMES);
 
-    const { error: txErr } = await supabase
-      .from('transactions')
-      .insert({
-        property_id: prop.id,
-        user_name: userName,
-        shares,
-        price_per_share: prop.share_price,
-        total_amount: shares * prop.share_price,
-      });
+    const { data, error: tradeError } = await supabase.rpc('record_demo_trade', {
+      target_property_id: prop.id,
+      requested_shares: shares,
+      demo_buyer_name: userName,
+    });
 
-    if (txErr) {
-      console.error(`   ✗ Insert failed: ${txErr.message}`);
+    if (tradeError) {
+      console.error(`   ✗ Demo trade failed: ${tradeError.message}`);
     } else {
-      console.log(`   ✓ ${userName} bought ${shares} share(s) of "${prop.title}" (₹${shares * prop.share_price})`);
-    }
-
-    // Also update shares_available on the property
-    const newAvailable = prop.shares_available - shares;
-    prop.shares_available = Math.max(newAvailable, 0);
-
-    if (prop.shares_available > 0) {
-      await supabase
-        .from('properties')
-        .update({ shares_available: prop.shares_available })
-        .eq('id', prop.id);
+      const result = Array.isArray(data) ? data[0] : data;
+      prop.shares_available = Math.max(Number(result?.sharesRemaining ?? prop.shares_available), 0);
+      console.log(`   ✓ ${result?.buyerName || userName} bought ${shares} share(s) of "${result?.propertyTitle || prop.title}" (₹${result?.totalAmount ?? shares * prop.share_price})`);
     }
 
     // Schedule next tick between 3–8 seconds

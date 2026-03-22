@@ -18,12 +18,15 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  function postSignupPath(selectedRole: Role) {
+    return selectedRole === "owner" ? "/list-property" : "/marketplace";
+  }
+
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    /* Create auth user — profile is auto-created by DB trigger */
     const { error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -36,15 +39,22 @@ export default function SignupPage() {
       return;
     }
 
-    router.push("/marketplace");
+    window.localStorage.setItem("landly-user-role", role);
+    router.push(postSignupPath(role));
   }
 
   async function handleGoogleSignup() {
     setError("");
+    const nextPath = postSignupPath(role);
+    window.localStorage.setItem("landly-user-role", role);
+
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin + "/marketplace" },
+      options: {
+        redirectTo: `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(nextPath)}`,
+      },
     });
+
     if (oauthError) {
       setError(oauthError.message);
     }
@@ -78,7 +88,7 @@ export default function SignupPage() {
             Create your account
           </h1>
           <p className="mt-2 text-sm text-landly-slate">
-            Join Landly and start investing from ₹100
+            Join Landly to unlock property value or start investing with confidence
           </p>
 
           <form onSubmit={handleSignup} className="mt-8 space-y-5">
@@ -128,7 +138,6 @@ export default function SignupPage() {
               />
             </div>
 
-            {/* role selector */}
             <div>
               <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-landly-slate">
                 I am a…

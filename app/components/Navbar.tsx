@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/app/components/AuthProvider";
-import { getAuthHeaders } from "@/lib/supabase";
+import { getAuthHeaders, supabase } from "@/lib/supabase";
 import { formatINR } from "@/app/lib/types";
 import { isAdminEmail } from "@/lib/admin";
 
@@ -26,6 +26,7 @@ export default function Navbar({ transparent = false }: NavbarProps) {
   const [fundLoading, setFundLoading] = useState(false);
   const [fundSuccess, setFundSuccess] = useState(false);
   const [fundError, setFundError] = useState("");
+  const [userRole, setUserRole] = useState<string | null>(null);
   const avatarRef = useRef<HTMLDivElement>(null);
   const addFundsRef = useRef<HTMLDivElement>(null);
   const { user, loading, signOut } = useAuth();
@@ -73,6 +74,50 @@ export default function Navbar({ transparent = false }: NavbarProps) {
     }
   }, [user, avatarOpen, fetchBalance]);
 
+  useEffect(() => {
+    let active = true;
+
+    async function resolveRole() {
+      if (!user) {
+        setUserRole(null);
+        return;
+      }
+
+      const metadataRole = typeof user.user_metadata?.role === "string"
+        ? user.user_metadata.role
+        : null;
+      const storedRole = typeof window !== "undefined"
+        ? window.localStorage.getItem("landly-user-role")
+        : null;
+
+      if (metadataRole) {
+        setUserRole(metadataRole);
+        window.localStorage.setItem("landly-user-role", metadataRole);
+      } else if (storedRole) {
+        setUserRole(storedRole);
+      }
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!active) return;
+
+      if (data?.role) {
+        setUserRole(data.role);
+        window.localStorage.setItem("landly-user-role", data.role);
+      }
+    }
+
+    resolveRole();
+
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
   async function handleAddFunds() {
     if (!user || fundLoading) return;
     const parsed = parseInt(fundAmount, 10);
@@ -107,9 +152,11 @@ export default function Navbar({ transparent = false }: NavbarProps) {
 
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
   const isAdmin = isAdminEmail(user?.email);
+  const isOwner = userRole === "owner";
 
   const NAV_LINKS = [
     { href: "/marketplace", label: "Marketplace" },
+    ...(user ? [{ href: "/list-property", label: isOwner ? "List Property" : "List Your Property" }] : []),
     ...(user ? [{ href: "/dashboard", label: "Dashboard" }] : []),
     ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
   ];
@@ -135,7 +182,9 @@ export default function Navbar({ transparent = false }: NavbarProps) {
               className={`relative text-sm font-medium transition-colors ${
                 pathname === link.href
                   ? "text-landly-gold"
-                  : "text-landly-offwhite/70 hover:text-landly-offwhite"
+                  : link.href === "/list-property" && isOwner
+                    ? "text-landly-offwhite hover:text-landly-gold"
+                    : "text-landly-offwhite/70 hover:text-landly-offwhite"
               }`}
             >
               {link.label}
@@ -272,6 +321,14 @@ export default function Navbar({ transparent = false }: NavbarProps) {
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
                       Profile
+                    </Link>
+                    <Link
+                      href="/list-property"
+                      onClick={() => setAvatarOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-landly-offwhite/80 transition-colors hover:bg-landly-slate/10 hover:text-landly-offwhite"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18" /><path d="M5 8h14" /><path d="M7 21h10" /></svg>
+                      List Property
                     </Link>
                     <button
                       onClick={async () => {

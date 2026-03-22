@@ -4,6 +4,63 @@ import Link from "next/link";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 
+const ownerTrack = [
+  {
+    num: "01",
+    title: "List",
+    desc: "Submit land or property details and choose how much ownership you want to unlock.",
+  },
+  {
+    num: "02",
+    title: "Verify",
+    desc: "Landly reviews title, survey, and legal records before the listing goes live.",
+  },
+  {
+    num: "03",
+    title: "Unlock Capital",
+    desc: "Raise liquidity from investors while retaining the ownership you want to keep.",
+  },
+];
+
+const investorTrack = [
+  {
+    num: "01",
+    title: "Browse",
+    desc: "Explore verified opportunities across agricultural, residential, and commercial assets.",
+  },
+  {
+    num: "02",
+    title: "Buy Shares",
+    desc: "Start from an accessible ticket size and build exposure one property at a time.",
+  },
+  {
+    num: "03",
+    title: "Earn Returns",
+    desc: "Track appreciation and participation across a portfolio designed for long-term wealth.",
+  },
+];
+
+const propertyCategories = [
+  {
+    icon: "🌾",
+    type: "Agricultural",
+    pitch: "Farmland and productive acreage with accessible entry points for first-time investors.",
+    price: "₹100",
+  },
+  {
+    icon: "🏠",
+    type: "Residential",
+    pitch: "Urban homes and growth corridors that balance stability with everyday affordability.",
+    price: "₹500",
+  },
+  {
+    icon: "🏢",
+    type: "Commercial",
+    pitch: "Retail and business assets for investors seeking higher-ticket, income-led exposure.",
+    price: "₹2,000",
+  },
+];
+
 /* ── motion helpers ─────────────────────────────────── */
 const fadeUp = (delay: number) => ({
   hidden: { opacity: 0, y: 32 },
@@ -114,37 +171,44 @@ export default function Home() {
               variants={fadeUp(0.1)}
               className="font-sans text-5xl font-bold leading-[1.1] tracking-tight text-landly-offwhite md:text-7xl"
             >
-              Own a piece of India.
+              Unlock your land.
               <br />
-              <span className="text-landly-gold">From ₹100.</span>
+              <span className="text-landly-gold">Invest from ₹100.</span>
             </motion.h1>
 
-            <motion.p
+            <motion.div
               variants={fadeUp(0.2)}
-              className="mx-auto mt-6 max-w-lg text-lg leading-relaxed text-landly-slate"
+              className="mx-auto mt-6 max-w-2xl space-y-3 text-left text-base leading-relaxed text-landly-slate md:text-center md:text-lg"
             >
-              Fractional real estate investing for everyone. Buy shares in
-              agricultural land, residential flats, and commercial spaces.
-            </motion.p>
+              <p>Turn idle land into liquid capital without selling it.</p>
+              <p>Own fractional real estate across India, starting at ₹100.</p>
+            </motion.div>
 
             <motion.div
               variants={fadeUp(0.3)}
               className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center"
             >
               <Link
-                href="/signup"
+                href="/list-property"
                 className="group relative inline-flex h-12 items-center justify-center rounded-[var(--radius-land)] bg-landly-green px-8 text-sm font-semibold text-white transition-all hover:brightness-110"
               >
                 <span className="absolute inset-0 rounded-[var(--radius-land)] opacity-0 shadow-[0_0_24px_rgba(5,150,105,0.4)] transition-opacity group-hover:opacity-100" />
-                <span className="relative">Start Investing</span>
+                <span className="relative">I Own Land</span>
               </Link>
               <Link
                 href="/marketplace"
                 className="group inline-flex h-12 items-center justify-center rounded-[var(--radius-land)] border border-landly-gold/40 px-8 text-sm font-semibold text-landly-gold transition-all hover:border-landly-gold hover:bg-landly-gold/5"
               >
-                Explore Properties
+                I Want to Invest
               </Link>
             </motion.div>
+
+            <motion.p
+              variants={fadeUp(0.38)}
+              className="mx-auto mt-6 max-w-xl text-xs uppercase tracking-[0.2em] text-landly-slate"
+            >
+              Built for landowners seeking liquidity and families investing toward ownership
+            </motion.p>
           </motion.div>
         </motion.div>
 
@@ -173,7 +237,7 @@ export default function Home() {
               variants={fadeUp(0)}
               className="text-sm font-semibold uppercase tracking-[0.2em] text-landly-gold"
             >
-              Simple process
+              Two-sided platform
             </motion.p>
             <motion.h2
               variants={fadeUp(0.1)}
@@ -183,44 +247,76 @@ export default function Home() {
             </motion.h2>
           </Reveal>
 
-          <Reveal className="mt-20 grid gap-12 md:grid-cols-3 md:gap-0">
+          <Reveal className="mt-20 grid gap-10 lg:grid-cols-2">
             {[
               {
-                num: "01",
-                title: "List Your Property",
-                desc: "Property owners list their land, flat, or commercial space on the platform.",
+                label: "For Landowners",
+                accent: "text-landly-green",
+                steps: ownerTrack,
               },
               {
-                num: "02",
-                title: "We Verify & Split",
-                desc: "Landly verifies the property and divides it into affordable fractional shares.",
+                label: "For Investors",
+                accent: "text-landly-gold",
+                steps: investorTrack,
               },
-              {
-                num: "03",
-                title: "Investors Buy Shares",
-                desc: "Anyone can invest from ₹100.  When value rises, everyone benefits.",
-              },
-            ].map((step, i) => (
+            ].map((track, trackIndex) => (
               <motion.div
-                key={step.num}
-                variants={fadeUp(i * 0.12)}
-                className="relative text-center md:px-8"
+                key={track.label}
+                variants={fadeUp(trackIndex * 0.12)}
+                className="rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/30 p-6 md:p-8"
               >
-                {/* connector line (desktop only) */}
-                {i < 2 && (
-                  <div className="pointer-events-none absolute right-0 top-6 hidden h-px w-full translate-x-1/2 bg-gradient-to-r from-landly-gold/30 to-transparent md:block" />
-                )}
-                <span className="font-mono text-4xl font-medium text-landly-gold">
-                  {step.num}
-                </span>
-                <h3 className="mt-4 font-sans text-lg font-semibold text-landly-offwhite">
-                  {step.title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-landly-slate">
-                  {step.desc}
+                <p className={`text-sm font-semibold uppercase tracking-[0.2em] ${track.accent}`}>
+                  {track.label}
                 </p>
+                <div className="mt-8 space-y-6">
+                  {track.steps.map((step) => (
+                    <div key={`${track.label}-${step.num}`} className="grid gap-3 md:grid-cols-[64px_1fr] md:items-start">
+                      <span className="font-mono text-3xl font-medium text-landly-gold">
+                        {step.num}
+                      </span>
+                      <div>
+                        <h3 className="font-sans text-lg font-semibold text-landly-offwhite">
+                          {step.title}
+                        </h3>
+                        <p className="mt-2 text-sm leading-relaxed text-landly-slate">
+                          {step.desc}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </motion.div>
             ))}
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="relative py-20 md:py-24">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-landly-gold/20 to-transparent" />
+
+        <div className="mx-auto max-w-5xl px-6">
+          <Reveal className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
+            <motion.div variants={fadeUp(0)}>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-landly-gold">
+                Real outcome
+              </p>
+              <h2 className="mt-3 font-sans text-3xl font-bold text-landly-offwhite md:text-4xl">
+                One listing can solve both sides of the market.
+              </h2>
+            </motion.div>
+
+            <motion.div
+              variants={fadeUp(0.1)}
+              className="rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/40 p-6 md:p-8"
+            >
+              <p className="text-lg leading-relaxed text-landly-offwhite">
+                Ramesh owns 2 acres in Tamil Nadu worth ₹40L. He lists 40% on Landly, keeps 60% ownership,
+                and unlocks ₹16L in 3 weeks while 200 investors each put in as little as ₹500.
+              </p>
+              <p className="mt-4 text-sm leading-relaxed text-landly-slate">
+                Landly is designed for this exact exchange: owners gain liquidity without a full exit, and retail investors gain access to real estate that used to be out of reach.
+              </p>
+            </motion.div>
           </Reveal>
         </div>
       </section>
@@ -247,26 +343,7 @@ export default function Home() {
           </Reveal>
 
           <Reveal className="mt-20 grid gap-16 md:grid-cols-3">
-            {[
-              {
-                icon: "🌾",
-                type: "Agricultural",
-                pitch: "Fertile farmland across Kerala, Punjab, and Maharashtra.",
-                price: "₹1,000",
-              },
-              {
-                icon: "🏠",
-                type: "Residential",
-                pitch: "Urban apartments and suburban homes in growing Indian cities.",
-                price: "₹1,000",
-              },
-              {
-                icon: "🏢",
-                type: "Commercial",
-                pitch: "Office parks, retail spaces, and tech campus units.",
-                price: "₹10,000",
-              },
-            ].map((item, i) => (
+            {propertyCategories.map((item, i) => (
               <motion.div
                 key={item.type}
                 variants={fadeUp(i * 0.12)}
@@ -294,37 +371,32 @@ export default function Home() {
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-landly-gold/20 to-transparent" />
 
         <div className="mx-auto max-w-5xl px-6">
-          {/* stats */}
-          <Reveal className="flex flex-col items-center justify-center gap-12 md:flex-row md:gap-20">
-            {[
-              { value: "6", label: "Properties Listed" },
-              { value: "1,200+", label: "Investors" },
-              { value: "₹3.5 Cr+", label: "Platform Value" },
-            ].map((stat, i) => (
-              <motion.div key={stat.label} variants={fadeUp(i * 0.1)} className="text-center">
-                <span className="font-mono text-4xl font-bold text-landly-gold md:text-5xl">
-                  {stat.value}
-                </span>
-                <p className="mt-2 text-sm text-landly-slate">{stat.label}</p>
-              </motion.div>
-            ))}
-          </Reveal>
-
-          {/* final CTA */}
-          <Reveal className="mt-24 text-center">
+          <Reveal className="text-center">
             <motion.h2
               variants={fadeUp(0)}
               className="font-sans text-3xl font-bold text-landly-offwhite md:text-4xl"
             >
-              Ready to own your piece?
+              Ready to unlock value on either side of the market?
             </motion.h2>
-            <motion.div variants={fadeUp(0.15)} className="mt-8">
+            <motion.p
+              variants={fadeUp(0.08)}
+              className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-landly-slate md:text-base"
+            >
+              Landly connects landowners seeking capital with investors seeking real estate access, using one verified marketplace.
+            </motion.p>
+            <motion.div variants={fadeUp(0.15)} className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
-                href="/signup"
+                href="/list-property"
                 className="group relative inline-flex h-14 items-center justify-center rounded-[var(--radius-land)] bg-landly-green px-10 text-base font-semibold text-white transition-all hover:brightness-110"
               >
                 <span className="absolute inset-0 rounded-[var(--radius-land)] opacity-0 shadow-[0_0_32px_rgba(5,150,105,0.35)] transition-opacity group-hover:opacity-100" />
-                <span className="relative">Get Started — It&apos;s Free</span>
+                <span className="relative">List Your Property</span>
+              </Link>
+              <Link
+                href="/marketplace"
+                className="inline-flex h-14 items-center justify-center rounded-[var(--radius-land)] border border-landly-gold/40 px-10 text-base font-semibold text-landly-gold transition-all hover:border-landly-gold hover:bg-landly-gold/5"
+              >
+                Explore Investments
               </Link>
             </motion.div>
           </Reveal>

@@ -12,10 +12,25 @@ import { useAuth } from "@/app/components/AuthProvider";
 import { getAuthHeaders } from "@/lib/supabase";
 
 const TYPE_COLORS: Record<string, string> = {
-  agricultural: "bg-emerald-600/80",
-  residential: "bg-sky-600/80",
+  agricultural: "bg-landly-green/80",
+  residential: "bg-landly-slate/80",
   commercial: "bg-landly-gold/80",
 };
+
+const verificationChecks = [
+  {
+    title: "Title Deed Verified",
+    detail: "Ownership and transfer records reviewed by Landly verification.",
+  },
+  {
+    title: "Survey Report Verified",
+    detail: "Boundary, acreage, and site details matched to submitted documents.",
+  },
+  {
+    title: "Legal Clearance Verified",
+    detail: "Core legal and listing compliance checks cleared before investor access.",
+  },
+];
 
 const fadeUp = (delay: number) => ({
   hidden: { opacity: 0, y: 20 },
@@ -182,15 +197,28 @@ export default function PropertyDetailPage({
               />
             </motion.div>
 
-            {/* documents placeholder */}
+            {/* verification proof */}
             <motion.section variants={fadeUp(0.25)} className="mt-8">
               <h2 className="font-sans text-lg font-semibold text-landly-offwhite">
-                Documents
+                Verification Proof
               </h2>
-              <div className="mt-3 rounded-[var(--radius-land)] border border-dashed border-landly-slate/20 px-6 py-8 text-center">
-                <p className="text-sm text-landly-slate">
-                  Property documents will appear here after verification
-                </p>
+              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                {verificationChecks.map((item) => (
+                  <div
+                    key={item.title}
+                    className="rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/50 p-5"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-landly-green/10 text-lg text-landly-green">
+                      ✓
+                    </div>
+                    <h3 className="mt-4 font-sans text-base font-semibold text-landly-offwhite">
+                      {item.title}
+                    </h3>
+                    <p className="mt-2 text-sm leading-relaxed text-landly-slate">
+                      {item.detail}
+                    </p>
+                  </div>
+                ))}
               </div>
             </motion.section>
 

@@ -216,10 +216,10 @@ export default function PropertyTradingTerminal({
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h2 className="font-sans text-lg font-semibold text-landly-offwhite">
-            Trading Terminal
+            Investment Panel
           </h2>
           <p className="mt-1 text-xs text-landly-slate">
-            Chart, price trend, and live order execution
+            View property performance and manage your investment
           </p>
         </div>
         <div className="text-right">
@@ -281,7 +281,7 @@ export default function PropertyTradingTerminal({
                   </svg>
                 </div>
                 <p className="mt-4 text-sm font-medium text-landly-offwhite">
-                  Sign in to trade
+                  Sign in to invest
                 </p>
                 <p className="mt-1 text-xs text-landly-slate">
                   Log in or sign up to buy and sell shares
@@ -313,7 +313,7 @@ export default function PropertyTradingTerminal({
                     : "text-landly-slate hover:text-landly-offwhite"
                 }`}
               >
-                BUY
+                Buy Shares
               </button>
               <button
                 onClick={() => setTab("sell")}
@@ -323,15 +323,22 @@ export default function PropertyTradingTerminal({
                     : "text-landly-slate hover:text-landly-offwhite"
                 }`}
               >
-                SELL
+                Sell Shares
               </button>
             </div>
 
             {/* inputs */}
             <div className="space-y-3 rounded-(--radius-land) bg-landly-navy/70 p-3">
+              {tradeError && (
+                <div className="rounded-(--radius-land) border border-landly-red/30 bg-landly-red/10 px-3 py-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-landly-red">Trade Error</p>
+                  <p className="mt-1 text-xs text-landly-red">{tradeError}</p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-[10px] uppercase tracking-wider text-landly-slate">
-                  Qty
+                  Shares
                 </label>
                 <input
                   type="number"
@@ -401,14 +408,8 @@ export default function PropertyTradingTerminal({
                   ? "Processing…"
                   : tradeSuccess
                     ? "✓ Success"
-                    : `${tab === "buy" ? "BUY" : "SELL"} ${shares} Share${shares > 1 ? "s" : ""}`}
+                    : `${tab === "buy" ? "Buy" : "Sell"} ${shares} Share${shares > 1 ? "s" : ""}`}
               </motion.button>
-
-              {tradeError && (
-                <p className="rounded bg-landly-red/10 px-2 py-1 text-[10px] text-landly-red">
-                  {tradeError}
-                </p>
-              )}
 
               {tab === "buy" && (
                 <div className="rounded bg-landly-navy-deep/60 px-2 py-2">
@@ -432,7 +433,7 @@ export default function PropertyTradingTerminal({
         <div className="mt-6 grid gap-5 lg:grid-cols-2">
           <div>
             <h3 className="mb-2 font-sans text-sm font-semibold text-landly-offwhite">
-              Bid Orders
+              Buyer Interest
             </h3>
             <div className="space-y-1 rounded-(--radius-land) bg-landly-navy/70 p-2">
               {market.orderbook.bids.slice(0, 8).map((bid, index) => (
@@ -463,7 +464,7 @@ export default function PropertyTradingTerminal({
 
           <div>
             <h3 className="mb-2 font-sans text-sm font-semibold text-landly-offwhite">
-              Ask Orders
+              Seller Interest
             </h3>
             <div className="space-y-1 rounded-(--radius-land) bg-landly-navy/70 p-2">
               {market.orderbook.asks.slice(0, 8).map((ask, index) => (

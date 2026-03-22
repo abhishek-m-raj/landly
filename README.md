@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Landly
 
-## Getting Started
+Landly is a fractional real estate investing platform for India built for hackathon demos. Property owners submit listings, admins review and approve them, and investors buy or sell fractional shares through a fintech-style marketplace with live activity and portfolio tracking.
 
-First, run the development server:
+## Problem
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Retail investors are usually locked out of real-estate ownership by high ticket sizes and opaque processes. Landly makes that experience feel more like a modern investment app: discover properties, track holdings, manage wallet balance, and trade small fractions instead of committing to full-property ownership.
+
+## Tech Stack
+
+- Next.js 16 App Router
+- React 19
+- Tailwind CSS 4
+- Framer Motion
+- Supabase Auth
+- Supabase Postgres
+- Supabase Realtime
+- Vercel
+
+## Core Flows
+
+- Investor signup and login
+- Marketplace browsing and property detail pages
+- Wallet funding and share purchases
+- Live activity ticker and transaction feed
+- Owner property submission
+- Admin approval and operations console
+
+## Local Development
+
+Create `.env.local` with at least:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your-project-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Install dependencies and start the app:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open `http://localhost:3000`.
 
-## Learn More
+To build for production:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run build
+npm start
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Demo Bot
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The demo bot records synthetic purchase activity through a transactional database RPC so the live ticker and transaction feed stay active during presentations without corrupting property share counts.
 
-## Deploy on Vercel
+Run it with:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+node bot.js
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Team
+
+Team Landly

@@ -75,7 +75,7 @@ export default function TransactionFeed({ propertyId }: { propertyId: string }) 
               className="flex items-center justify-between rounded-[var(--radius-land)] bg-landly-navy-deep/50 px-4 py-3"
             >
               <p className="text-sm text-landly-offwhite/80">
-                <span className="font-semibold text-landly-offwhite">{tx.user_name}</span>{" "}
+                <span className="font-semibold text-landly-offwhite">{tx.user_name || "Demo Investor"}</span>{" "}
                 bought{" "}
                 <span className="font-mono font-semibold text-landly-gold">{tx.shares}</span>{" "}
                 shares
