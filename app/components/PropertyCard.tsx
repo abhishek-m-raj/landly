@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { type Property, formatINR, percentSold } from "@/app/lib/mock-data";
+import { type Property, formatINR, percentSold } from "@/app/lib/types";
 
 const TYPE_COLORS: Record<string, string> = {
   agricultural: "bg-emerald-600/80",

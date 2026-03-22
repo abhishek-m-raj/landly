@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { type Property, formatINR } from "@/app/lib/mock-data";
+import { type Property, formatINR } from "@/app/lib/types";
+import { supabase } from "@/lib/supabase";
 
 export default function SharePurchaseWidget({
   property,
-  walletBalance = 10000,
+  walletBalance: initialBalance = 0,
 }: {
   property: Property;
   walletBalance?: number;
@@ -14,21 +15,54 @@ export default function SharePurchaseWidget({
   const [shares, setShares] = useState(1);
   const [buying, setBuying] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
+  const [walletBalance, setWalletBalance] = useState(initialBalance);
+  const [sharesAvailable, setSharesAvailable] = useState(property.shares_available);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setWalletBalance(initialBalance);
+  }, [initialBalance]);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setUserId(user.id);
+    });
+  }, []);
 
   const totalCost = shares * property.share_price;
   const ownershipPct = ((shares / property.total_shares) * 100).toFixed(2);
   const canAfford = totalCost <= walletBalance;
-  const canBuy = shares > 0 && shares <= property.shares_available && canAfford;
+  const canBuy = shares > 0 && shares <= sharesAvailable && canAfford && !!userId;
 
-  function handleBuy() {
-    if (!canBuy) return;
+  async function handleBuy() {
+    if (!canBuy || !userId) return;
     setBuying(true);
-    // Simulated — will connect to POST /api/buy-shares
-    setTimeout(() => {
-      setBuying(false);
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    }, 1200);
+    setError("");
+    try {
+      const res = await fetch("/api/buy-shares", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId: property.id,
+          userId,
+          shares,
+          pricePerShare: property.share_price,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSuccess(true);
+        if (data.newWalletBalance != null) setWalletBalance(data.newWalletBalance);
+        if (data.sharesRemaining != null) setSharesAvailable(data.sharesRemaining);
+        setTimeout(() => setSuccess(false), 3000);
+      } else {
+        setError(data.error || "Purchase failed");
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    }
+    setBuying(false);
   }
 
   return (
@@ -52,13 +86,13 @@ export default function SharePurchaseWidget({
           <input
             type="number"
             min={1}
-            max={property.shares_available}
+            max={sharesAvailable}
             value={shares}
-            onChange={(e) => setShares(Math.max(1, Math.min(property.shares_available, Number(e.target.value) || 1)))}
+            onChange={(e) => setShares(Math.max(1, Math.min(sharesAvailable, Number(e.target.value) || 1)))}
             className="h-10 w-full flex-1 rounded-[var(--radius-land)] border border-landly-slate/20 bg-landly-navy px-3 text-center font-mono text-sm text-landly-offwhite outline-none focus:border-landly-gold/50"
           />
           <button
-            onClick={() => setShares(Math.min(property.shares_available, shares + 1))}
+            onClick={() => setShares(Math.min(sharesAvailable, shares + 1))}
             className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-land)] border border-landly-slate/20 text-landly-offwhite transition-colors hover:border-landly-gold/40"
           >
             +
@@ -88,7 +122,7 @@ export default function SharePurchaseWidget({
           <div className="flex items-center justify-between text-sm">
             <span className="text-landly-slate">Shares available</span>
             <span className="font-mono text-landly-offwhite">
-              {property.shares_available}
+              {sharesAvailable}
             </span>
           </div>
         </div>
@@ -108,6 +142,10 @@ export default function SharePurchaseWidget({
         <p className="mt-2 text-center text-xs text-landly-red">
           Insufficient wallet balance
         </p>
+      )}
+
+      {error && (
+        <p className="mt-2 text-center text-xs text-landly-red">{error}</p>
       )}
 
       {/* wallet */}

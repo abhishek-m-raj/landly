@@ -1,6 +1,7 @@
-/* ── Frontend mock data ─────────────────────────────
-   All pages import from here during development.
-   When backend integration happens, swap to fetch calls. */
+/* ── DEPRECATED — This file is no longer used ──────
+   All pages now fetch from live APIs.
+   Types and helpers have moved to app/lib/types.ts.
+   This file can be safely deleted. */
 
 export interface Property {
   id: string;

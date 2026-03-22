@@ -1,17 +1,13 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { notFound } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import SharePurchaseWidget from "@/app/components/SharePurchaseWidget";
 import TransactionFeed from "@/app/components/TransactionFeed";
-import {
-  getPropertyById,
-  formatINR,
-  percentSold,
-  MOCK_USER,
-} from "@/app/lib/mock-data";
+import { type Property, formatINR, percentSold } from "@/app/lib/types";
+import { supabase } from "@/lib/supabase";
 
 const TYPE_COLORS: Record<string, string> = {
   agricultural: "bg-emerald-600/80",
@@ -34,7 +30,41 @@ export default function PropertyDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const property = getPropertyById(id);
+  const [property, setProperty] = useState<Property | null>(null);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const [propRes, authRes] = await Promise.all([
+        fetch(`/api/properties/${id}`),
+        supabase.auth.getUser(),
+      ]);
+      const propData = await propRes.json();
+      if (propRes.ok && propData && !propData.error) {
+        setProperty(propData);
+      }
+      const userId = authRes.data.user?.id;
+      if (userId) {
+        const walletRes = await fetch(`/api/wallet?userId=${userId}`);
+        const walletData = await walletRes.json();
+        if (walletRes.ok) setWalletBalance(walletData.wallet_balance ?? 0);
+      }
+      setLoading(false);
+    }
+    load();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-svh flex-col bg-landly-navy">
+        <Navbar />
+        <div className="flex flex-1 items-center justify-center">
+          <p className="text-landly-slate">Loading…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!property) return notFound();
 
@@ -154,7 +184,7 @@ export default function PropertyDetailPage({
           <div className="lg:sticky lg:top-24 lg:self-start">
             <SharePurchaseWidget
               property={property}
-              walletBalance={MOCK_USER.wallet_balance}
+              walletBalance={walletBalance}
             />
           </div>
         </div>

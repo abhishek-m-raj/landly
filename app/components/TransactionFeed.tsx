@@ -2,25 +2,43 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { randomTickerEntry, type Transaction } from "@/app/lib/mock-data";
+import { type Transaction } from "@/app/lib/types";
+import { supabase } from "@/lib/supabase";
 
 export default function TransactionFeed({ propertyId }: { propertyId: string }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   useEffect(() => {
-    /* Seed 3 initial + add one every 5 seconds (mock) */
-    const initial = Array.from({ length: 3 }, () => {
-      const tx = randomTickerEntry();
-      return { ...tx, property_id: propertyId };
-    });
-    setTransactions(initial);
+    /* Load recent transactions for this property */
+    supabase
+      .from("transactions")
+      .select("*")
+      .eq("property_id", propertyId)
+      .order("created_at", { ascending: false })
+      .limit(10)
+      .then(({ data }) => {
+        if (data) setTransactions(data);
+      });
 
-    const interval = setInterval(() => {
-      const tx = randomTickerEntry();
-      setTransactions((prev) => [{ ...tx, property_id: propertyId }, ...prev].slice(0, 10));
-    }, 5000);
+    /* Subscribe to new inserts for this property */
+    const channel = supabase
+      .channel(`tx-feed-${propertyId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "transactions",
+          filter: `property_id=eq.${propertyId}`,
+        },
+        (payload) => {
+          const tx = payload.new as Transaction;
+          setTransactions((prev) => [tx, ...prev].slice(0, 10));
+        }
+      )
+      .subscribe();
 
-    return () => clearInterval(interval);
+    return () => { supabase.removeChannel(channel); };
   }, [propertyId]);
 
   function timeAgo(iso: string) {

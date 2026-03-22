@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "@/app/components/Navbar";
+import { supabase } from "@/lib/supabase";
 
 type PropertyType = "agricultural" | "residential" | "commercial";
 
@@ -33,6 +34,9 @@ const TYPE_OPTIONS: { value: PropertyType; label: string }[] = [
 export default function ListPropertyPage() {
   const [step, setStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [userId, setUserId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>({
     title: "",
     location: "",
@@ -46,6 +50,12 @@ export default function ListPropertyPage() {
   const update = (key: keyof FormData, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setUserId(user.id);
+    });
+  }, []);
+
   const canNext =
     step === 0
       ? form.title && form.location && form.type
@@ -53,9 +63,36 @@ export default function ListPropertyPage() {
         ? form.description && form.total_value && form.total_shares && form.share_price
         : true;
 
-  const handleSubmit = () => {
-    /* Will POST to /api/properties once backend is connected */
-    setSubmitted(true);
+  const handleSubmit = async () => {
+    if (!userId || submitting) return;
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      const res = await fetch("/api/properties/list", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ownerId: userId,
+          title: form.title,
+          location: form.location,
+          type: form.type,
+          description: form.description,
+          totalValue: Number(form.total_value),
+          totalShares: Number(form.total_shares),
+          sharePrice: Number(form.share_price),
+          imageUrl: "",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSubmitted(true);
+      } else {
+        setSubmitError(data.error || "Failed to submit listing");
+      }
+    } catch {
+      setSubmitError("Network error. Please try again.");
+    }
+    setSubmitting(false);
   };
 
   const inputClass =
@@ -281,12 +318,17 @@ export default function ListPropertyPage() {
               ) : (
                 <button
                   onClick={handleSubmit}
-                  className="rounded-[var(--radius-land)] bg-landly-green px-8 py-3 text-sm font-semibold text-white transition-all hover:bg-landly-green/90"
+                  disabled={submitting}
+                  className="rounded-[var(--radius-land)] bg-landly-green px-8 py-3 text-sm font-semibold text-white transition-all hover:bg-landly-green/90 disabled:opacity-50"
                 >
-                  Submit for Review
+                  {submitting ? "Submitting…" : "Submit for Review"}
                 </button>
               )}
             </motion.div>
+
+            {submitError && (
+              <p className="mt-3 text-center text-sm text-landly-red">{submitError}</p>
+            )}
           </>
         )}
       </main>
