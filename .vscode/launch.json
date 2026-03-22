@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "NextJs",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "run", 
+                "dev", 
+                "--", 
+                "--port", 
+                "3000"
+            ],
+            "console": "internalConsole",
+            "serverReadyAction": {
+                "action": "debugWithChrome",
+                "pattern": "http://localhost:(\\d+)",
+                "uriFormat": "http://localhost:%s"
+            }
+        },
+    ],
+}
