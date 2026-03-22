@@ -209,6 +209,13 @@ Add ₹10,000 to user wallet.
 
 All previously listed mismatches have been resolved. ✅
 
+### Buy-Shares Fix (2026-03-22)
+- Added explicit `shares > 0` validation
+- Property is now fetched first; `property.share_price` is used as authoritative price (not the request's `pricePerShare`)
+- `totalAmount` is computed as `shares × property.share_price`
+- `price_per_share` recorded in transaction comes from DB, not from client
+- All schema columns are correct: `shares_owned`/`total_invested` for holdings; `user_id`/`property_id`/`user_name`/`shares`/`price_per_share`/`total_amount` for transactions
+
 ---
 
 ## Auth Contract

@@ -6,16 +6,36 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { propertyId, userId, shares, pricePerShare } = body;
 
-    if (!propertyId || !userId || !shares || !pricePerShare) {
+    if (!propertyId || !userId || shares == null || !pricePerShare) {
       return NextResponse.json(
         { error: 'Missing required fields: propertyId, userId, shares, pricePerShare' },
         { status: 400 }
       );
     }
 
-    const totalAmount = shares * pricePerShare;
+    if (!Number.isInteger(shares) || shares <= 0) {
+      return NextResponse.json({ error: 'shares must be a positive integer' }, { status: 400 });
+    }
 
-    // 1. Check wallet balance
+    // 1. Check property exists and get authoritative share_price
+    const { data: property, error: propError } = await supabase
+      .from('properties')
+      .select('shares_available, share_price')
+      .eq('id', propertyId)
+      .single();
+
+    if (propError || !property) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+    }
+
+    if (property.shares_available < shares) {
+      return NextResponse.json({ error: 'Not enough shares available' }, { status: 400 });
+    }
+
+    // Use DB share_price as source of truth
+    const totalAmount = shares * property.share_price;
+
+    // 2. Check user/profile exists and wallet balance
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('wallet_balance, full_name')
@@ -28,21 +48,6 @@ export async function POST(request: Request) {
 
     if (profile.wallet_balance < totalAmount) {
       return NextResponse.json({ error: 'Insufficient wallet balance' }, { status: 400 });
-    }
-
-    // 2. Check shares availability
-    const { data: property, error: propError } = await supabase
-      .from('properties')
-      .select('shares_available')
-      .eq('id', propertyId)
-      .single();
-
-    if (propError || !property) {
-      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
-    }
-
-    if (property.shares_available < shares) {
-      return NextResponse.json({ error: 'Not enough shares available' }, { status: 400 });
     }
 
     // 3. Deduct wallet balance
@@ -75,7 +80,7 @@ export async function POST(request: Request) {
         property_id: propertyId,
         user_name: profile.full_name || 'Anonymous',
         shares,
-        price_per_share: pricePerShare,
+        price_per_share: property.share_price,
         total_amount: totalAmount,
       });
 
