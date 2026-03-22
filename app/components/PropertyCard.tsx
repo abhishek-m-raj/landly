@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { type Property, formatINR, percentSold } from "@/app/lib/types";
+import { useAuth } from "@/app/components/AuthProvider";
+import AuthGateModal from "@/app/components/AuthGateModal";
 
 const TYPE_COLORS: Record<string, string> = {
   agricultural: "bg-emerald-600/80",
@@ -17,6 +20,8 @@ export default function PropertyCard({
   property: Property;
   index?: number;
 }) {
+  const { user } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const sold = percentSold(property);
 
   return (
@@ -96,13 +101,25 @@ export default function PropertyCard({
 
             {/* CTA */}
             <div className="mt-5">
-              <span className="block w-full rounded-[var(--radius-land)] bg-landly-green/10 py-2.5 text-center text-sm font-semibold text-landly-green transition-all group-hover:bg-landly-green group-hover:text-white">
+              <span
+                role="button"
+                onClick={(e) => {
+                  if (!user) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowAuthModal(true);
+                  }
+                }}
+                className="block w-full rounded-[var(--radius-land)] bg-landly-green/10 py-2.5 text-center text-sm font-semibold text-landly-green transition-all group-hover:bg-landly-green group-hover:text-white"
+              >
                 Invest Now
               </span>
             </div>
           </div>
         </div>
       </Link>
+
+      {showAuthModal && <AuthGateModal onClose={() => setShowAuthModal(false)} />}
     </motion.div>
   );
 }

@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Navbar from "@/app/components/Navbar";
+import { useAuth } from "@/app/components/AuthProvider";
 import { type Property, type Holding, type Transaction, formatINR } from "@/app/lib/types";
 import { supabase } from "@/lib/supabase";
 
@@ -17,12 +19,21 @@ const fadeUp = (delay: number) => ({
 });
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { user: authUser, loading: authLoading } = useAuth();
   const [walletBalance, setWalletBalance] = useState(0);
   const [holdings, setHoldings] = useState<(Holding & { property?: Property })[]>([]);
   const [transactions, setTransactions] = useState<(Transaction & { property?: Property })[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [addingFunds, setAddingFunds] = useState(false);
+
+  // Redirect logged-out users to login
+  useEffect(() => {
+    if (!authLoading && !authUser) {
+      router.replace("/login");
+    }
+  }, [authLoading, authUser, router]);
 
   useEffect(() => {
     async function load() {

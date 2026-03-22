@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   type PricePoint,
@@ -8,6 +9,7 @@ import {
   formatINR,
 } from "@/app/lib/types";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/app/components/AuthProvider";
 
 function buildPath(
   points: PricePoint[],
@@ -69,6 +71,8 @@ export default function PropertyTradingTerminal({
   const [userId, setUserId] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState(initialWalletBalance);
   const [userShares, setUserShares] = useState(0);
+
+  const { user: authUser } = useAuth();
 
   useEffect(() => {
     let mounted = true;
@@ -267,6 +271,37 @@ export default function PropertyTradingTerminal({
 
           {/* right: buy/sell ticket */}
           <div>
+            {!authUser ? (
+              <div className="flex flex-col items-center justify-center rounded-(--radius-land) border border-landly-slate/20 bg-landly-navy/50 px-6 py-12 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-landly-gold/10">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-landly-gold">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                </div>
+                <p className="mt-4 text-sm font-medium text-landly-offwhite">
+                  Sign in to trade
+                </p>
+                <p className="mt-1 text-xs text-landly-slate">
+                  Log in or sign up to buy and sell shares
+                </p>
+                <div className="mt-5 flex w-full flex-col gap-2">
+                  <Link
+                    href="/login"
+                    className="block w-full rounded py-2.5 text-xs font-semibold text-white bg-landly-green transition-all hover:brightness-110"
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="block w-full rounded border border-landly-slate/20 py-2.5 text-xs font-semibold text-landly-offwhite transition-all hover:border-landly-slate/40"
+                  >
+                    Sign up
+                  </Link>
+                </div>
+              </div>
+            ) : (
+            <>
             {/* tabs */}
             <div className="mb-4 flex gap-2 rounded-(--radius-land) border border-landly-slate/20 bg-landly-navy/50 p-1">
               <button
@@ -385,6 +420,8 @@ export default function PropertyTradingTerminal({
                 </div>
               )}
             </div>
+            </>
+            )}
           </div>
         </div>
       )}

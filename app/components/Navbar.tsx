@@ -2,22 +2,39 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/app/components/AuthProvider";
 
 interface NavbarProps {
   transparent?: boolean;
 }
 
-const NAV_LINKS = [
-  { href: "/marketplace", label: "Marketplace" },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/admin", label: "Admin" },
-];
-
 export default function Navbar({ transparent = false }: NavbarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const avatarRef = useRef<HTMLDivElement>(null);
+  const { user, loading, signOut } = useAuth();
+
+  // close avatar dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
+        setAvatarOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
+
+  const NAV_LINKS = [
+    { href: "/marketplace", label: "Marketplace" },
+    ...(user ? [{ href: "/dashboard", label: "Dashboard" }] : []),
+    { href: "/admin", label: "Admin" },
+  ];
 
   const bg = transparent
     ? "bg-transparent"
@@ -57,18 +74,83 @@ export default function Navbar({ transparent = false }: NavbarProps) {
 
         {/* desktop auth */}
         <div className="hidden items-center gap-3 md:flex">
-          <Link
-            href="/login"
-            className="rounded-(--radius-land) px-5 py-2 text-sm font-medium text-landly-offwhite/80 transition-colors hover:text-landly-offwhite"
-          >
-            Log in
-          </Link>
-          <Link
-            href="/signup"
-            className="rounded-(--radius-land) bg-landly-green px-5 py-2 text-sm font-semibold text-white transition-all hover:brightness-110"
-          >
-            Sign up
-          </Link>
+          {loading ? (
+            <div className="h-9 w-9 rounded-full bg-landly-slate/20 animate-pulse" />
+          ) : user ? (
+            <div ref={avatarRef} className="relative">
+              <button
+                onClick={() => setAvatarOpen(!avatarOpen)}
+                className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-landly-gold/40 transition-all hover:border-landly-gold"
+                aria-label="User menu"
+              >
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt="Avatar"
+                    className="h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-landly-offwhite">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {avatarOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-2 w-48 overflow-hidden rounded-(--radius-land) border border-landly-slate/15 bg-landly-navy-deep shadow-xl"
+                  >
+                    <div className="border-b border-landly-slate/10 px-4 py-3">
+                      <p className="truncate text-sm font-medium text-landly-offwhite">
+                        {user.user_metadata?.full_name || user.email}
+                      </p>
+                      <p className="truncate text-xs text-landly-slate">{user.email}</p>
+                    </div>
+                    <Link
+                      href="/dashboard"
+                      onClick={() => setAvatarOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-landly-offwhite/80 transition-colors hover:bg-landly-slate/10 hover:text-landly-offwhite"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                      Profile
+                    </Link>
+                    <button
+                      onClick={async () => {
+                        setAvatarOpen(false);
+                        await signOut();
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-landly-red/80 transition-colors hover:bg-landly-slate/10 hover:text-landly-red"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+                      Log out
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="rounded-(--radius-land) px-5 py-2 text-sm font-medium text-landly-offwhite/80 transition-colors hover:text-landly-offwhite"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/signup"
+                className="rounded-(--radius-land) bg-landly-green px-5 py-2 text-sm font-semibold text-white transition-all hover:brightness-110"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
         </div>
 
         {/* mobile hamburger */}
@@ -115,20 +197,57 @@ export default function Navbar({ transparent = false }: NavbarProps) {
               </Link>
             ))}
             <div className="mt-4 border-t border-landly-slate/20 pt-4">
-              <Link
-                href="/login"
-                onClick={() => setMobileOpen(false)}
-                className="block py-2 text-lg font-medium text-landly-offwhite/80"
-              >
-                Log in
-              </Link>
-              <Link
-                href="/signup"
-                onClick={() => setMobileOpen(false)}
-                className="mt-2 block rounded-(--radius-land) bg-landly-green px-5 py-3 text-center text-sm font-semibold text-white"
-              >
-                Sign up
-              </Link>
+              {user ? (
+                <>
+                  <div className="flex items-center gap-3 pb-3">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt="Avatar"
+                        className="h-9 w-9 rounded-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-landly-slate/20">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-landly-offwhite">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-landly-offwhite">
+                        {user.user_metadata?.full_name || user.email}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setMobileOpen(false);
+                      await signOut();
+                    }}
+                    className="block w-full rounded-(--radius-land) border border-landly-red/30 py-2.5 text-center text-sm font-semibold text-landly-red transition-all hover:bg-landly-red/10"
+                  >
+                    Log out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileOpen(false)}
+                    className="block py-2 text-lg font-medium text-landly-offwhite/80"
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    href="/signup"
+                    onClick={() => setMobileOpen(false)}
+                    className="mt-2 block rounded-(--radius-land) bg-landly-green px-5 py-3 text-center text-sm font-semibold text-white"
+                  >
+                    Sign up
+                  </Link>
+                </>
+              )}
             </div>
           </motion.div>
         )}
