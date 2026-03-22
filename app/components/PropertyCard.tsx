@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { type Property, formatINR, percentSold } from "@/app/lib/types";
+import { type Property, formatINR } from "@/app/lib/types";
 
 const TYPE_COLORS: Record<string, string> = {
   agricultural: "bg-landly-green/80",
@@ -30,7 +30,6 @@ export default function PropertyCard({
   property: Property;
   index?: number;
 }) {
-  const sold = percentSold(property);
   const estimatedYield = property.estimated_yield ?? ESTIMATED_YIELDS[property.type];
   const isVerified = ["verified", "live", "sold"].includes(property.status);
 
@@ -114,22 +113,6 @@ export default function PropertyCard({
                 <span className="block text-[10px] uppercase tracking-wider text-landly-slate">
                   Available
                 </span>
-              </div>
-            </div>
-
-            {/* progress bar */}
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-landly-slate">
-                <span>{sold}% funded</span>
-                <span>{property.total_shares - property.shares_available} / {property.total_shares} shares</span>
-              </div>
-              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-landly-slate/20">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${sold}%` }}
-                  transition={{ duration: 1, delay: index * 0.08 + 0.3, ease: "easeOut" }}
-                  className="h-full rounded-full bg-landly-green"
-                />
               </div>
             </div>
 

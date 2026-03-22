@@ -7,7 +7,7 @@ import { notFound } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import PropertyTradingTerminal from "@/app/components/PropertyTradingTerminal";
 import TransactionFeed from "@/app/components/TransactionFeed";
-import { type Property, formatINR, percentSold } from "@/app/lib/types";
+import { type Property, formatINR } from "@/app/lib/types";
 import { useAuth } from "@/app/components/AuthProvider";
 import { getAuthHeaders } from "@/lib/supabase";
 
@@ -84,8 +84,6 @@ export default function PropertyDetailPage({
   }
 
   if (!property) return notFound();
-
-  const sold = percentSold(property);
 
   return (
     <div className="flex min-h-svh flex-col bg-landly-navy">
@@ -168,23 +166,6 @@ export default function PropertyDetailPage({
                 ))}
               </div>
 
-              {/* progress */}
-              <div className="mt-4">
-                <div className="flex items-center justify-between text-xs text-landly-slate">
-                  <span>{sold}% funded</span>
-                  <span>
-                    {property.total_shares - property.shares_available} / {property.total_shares} shares sold
-                  </span>
-                </div>
-                <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-landly-slate/20">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${sold}%` }}
-                    transition={{ duration: 1.2, ease: "easeOut" }}
-                    className="h-full rounded-full bg-landly-green"
-                  />
-                </div>
-              </div>
             </motion.section>
 
             {/* price chart and orderbook */}
