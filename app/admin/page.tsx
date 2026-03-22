@@ -1,22 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "@/app/components/Navbar";
-import {
-  MOCK_PENDING_PROPERTIES,
-  formatINR,
-  type Property,
-} from "@/app/lib/mock-data";
+import { type Property, formatINR } from "@/app/lib/types";
 
 export default function AdminPage() {
-  const [pending, setPending] = useState<Property[]>(MOCK_PENDING_PROPERTIES);
-  const [decided, setDecided] = useState<{ id: string; action: "approved" | "rejected" }[]>([]);
+  const [pending, setPending] = useState<Property[]>([]);
+  const [decided, setDecided] = useState<{ id: string; title: string; action: "approved" | "rejected" }[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleAction = (id: string, action: "approved" | "rejected") => {
-    setDecided((prev) => [...prev, { id, action }]);
-    setPending((prev) => prev.filter((p) => p.id !== id));
-  };
+  useEffect(() => {
+    fetch("/api/admin/pending")
+      .then((r) => r.json())
+      .then((data) => setPending(data ?? []))
+      .catch(() => setPending([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleAction(prop: Property, action: "approved" | "rejected") {
+    const endpoint = action === "approved"
+      ? `/api/admin/approve/${prop.id}`
+      : `/api/admin/reject/${prop.id}`;
+    const res = await fetch(endpoint, { method: "POST" });
+    if (res.ok) {
+      setDecided((prev) => [...prev, { id: prop.id, title: prop.title, action }]);
+      setPending((prev) => prev.filter((p) => p.id !== prop.id));
+    }
+  }
 
   const typeColor: Record<string, string> = {
     agricultural: "text-landly-green",
@@ -42,7 +53,7 @@ export default function AdminPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, transition: { delay: 0.05 } }}
         >
-          {pending.length} pending {pending.length === 1 ? "listing" : "listings"} awaiting review
+          {loading ? "Loading…" : `${pending.length} pending ${pending.length === 1 ? "listing" : "listings"} awaiting review`}
         </motion.p>
 
         {/* pending list */}
@@ -89,13 +100,13 @@ export default function AdminPage() {
 
                   <div className="flex shrink-0 gap-2">
                     <button
-                      onClick={() => handleAction(prop.id, "approved")}
+                      onClick={() => handleAction(prop, "approved")}
                       className="rounded-[var(--radius-land)] bg-landly-green/15 px-5 py-2 text-sm font-semibold text-landly-green transition-all hover:bg-landly-green/25"
                     >
                       Approve
                     </button>
                     <button
-                      onClick={() => handleAction(prop.id, "rejected")}
+                      onClick={() => handleAction(prop, "rejected")}
                       className="rounded-[var(--radius-land)] bg-landly-red/10 px-5 py-2 text-sm font-semibold text-landly-red transition-all hover:bg-landly-red/20"
                     >
                       Reject
@@ -127,7 +138,6 @@ export default function AdminPage() {
             <h2 className="text-sm font-medium uppercase tracking-wider text-landly-slate">Action Log</h2>
             <div className="mt-3 space-y-2">
               {decided.map((d) => {
-                const prop = MOCK_PENDING_PROPERTIES.find((p) => p.id === d.id);
                 return (
                   <div
                     key={d.id}
@@ -138,7 +148,7 @@ export default function AdminPage() {
                         d.action === "approved" ? "bg-landly-green" : "bg-landly-red"
                       }`}
                     />
-                    <span className="text-landly-offwhite">{prop?.title}</span>
+                    <span className="text-landly-offwhite">{d.title}</span>
                     <span className={d.action === "approved" ? "text-landly-green" : "text-landly-red"}>
                       {d.action}
                     </span>

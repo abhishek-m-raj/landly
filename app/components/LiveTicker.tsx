@@ -2,27 +2,60 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  MOCK_PROPERTIES,
-  randomTickerEntry,
-  type Transaction,
-} from "@/app/lib/mock-data";
+import { type Transaction } from "@/app/lib/types";
+import { supabase } from "@/lib/supabase";
 
 export default function LiveTicker() {
   const [current, setCurrent] = useState<Transaction | null>(null);
+  const [propNames, setPropNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    /* Rotate a new mock transaction every 4 seconds */
-    const tick = () => setCurrent(randomTickerEntry());
-    tick();
-    const interval = setInterval(tick, 4000);
-    return () => clearInterval(interval);
+    /* Load recent transaction + property names */
+    async function init() {
+      const { data } = await supabase
+        .from("transactions")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (data?.[0]) {
+        setCurrent(data[0]);
+        await loadPropName(data[0].property_id);
+      }
+    }
+    init();
+
+    /* Subscribe to new transaction inserts */
+    const channel = supabase
+      .channel("live-ticker")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "transactions" },
+        (payload) => {
+          const tx = payload.new as Transaction;
+          setCurrent(tx);
+          loadPropName(tx.property_id);
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
+
+  async function loadPropName(propertyId: string) {
+    if (propNames[propertyId]) return;
+    const { data } = await supabase
+      .from("properties")
+      .select("title")
+      .eq("id", propertyId)
+      .single();
+    if (data?.title) {
+      setPropNames((prev) => ({ ...prev, [propertyId]: data.title }));
+    }
+  }
 
   if (!current) return null;
 
-  const propTitle =
-    MOCK_PROPERTIES.find((p) => p.id === current.property_id)?.title ?? "a property";
+  const propTitle = propNames[current.property_id] ?? "a property";
 
   return (
     <div className="fixed bottom-0 left-0 z-40 w-full border-t border-landly-slate/10 bg-landly-navy-deep/90 backdrop-blur-md">

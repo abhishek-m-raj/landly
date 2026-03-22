@@ -1,15 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Navbar from "@/app/components/Navbar";
-import {
-  MOCK_USER,
-  MOCK_HOLDINGS,
-  MOCK_PROPERTIES,
-  MOCK_TRANSACTIONS,
-  formatINR,
-} from "@/app/lib/mock-data";
+import { type Property, type Holding, type Transaction, formatINR } from "@/app/lib/types";
+import { supabase } from "@/lib/supabase";
 
 const fadeUp = (delay: number) => ({
   hidden: { opacity: 0, y: 16 },
@@ -21,11 +17,54 @@ const fadeUp = (delay: number) => ({
 });
 
 export default function DashboardPage() {
-  /* Enrich holdings with property data */
-  const holdings = MOCK_HOLDINGS.map((h) => ({
-    ...h,
-    property: MOCK_PROPERTIES.find((p) => p.id === h.property_id),
-  }));
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [holdings, setHoldings] = useState<(Holding & { property?: Property })[]>([]);
+  const [transactions, setTransactions] = useState<(Transaction & { property?: Property })[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [addingFunds, setAddingFunds] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+      setUserId(user.id);
+
+      const [walletRes, holdingsRes, txRes] = await Promise.all([
+        fetch(`/api/wallet?userId=${user.id}`),
+        supabase
+          .from("holdings")
+          .select("*, property:properties(*)")
+          .eq("user_id", user.id),
+        supabase
+          .from("transactions")
+          .select("*, property:properties(*)")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(10),
+      ]);
+
+      const walletData = await walletRes.json();
+      if (walletRes.ok) setWalletBalance(walletData.wallet_balance ?? 0);
+      if (holdingsRes.data) setHoldings(holdingsRes.data);
+      if (txRes.data) setTransactions(txRes.data);
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  async function handleAddFunds() {
+    if (!userId || addingFunds) return;
+    setAddingFunds(true);
+    const res = await fetch("/api/wallet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    const data = await res.json();
+    if (res.ok && data.newBalance != null) setWalletBalance(data.newBalance);
+    setAddingFunds(false);
+  }
 
   const totalInvested = holdings.reduce((sum, h) => sum + h.total_invested, 0);
   const totalCurrentValue = holdings.reduce((sum, h) => {
@@ -34,6 +73,17 @@ export default function DashboardPage() {
   }, 0);
   const totalGain = totalCurrentValue - totalInvested;
   const gainPct = totalInvested > 0 ? ((totalGain / totalInvested) * 100).toFixed(1) : "0";
+
+  if (loading) {
+    return (
+      <div className="flex min-h-svh flex-col bg-landly-navy">
+        <Navbar />
+        <div className="flex flex-1 items-center justify-center">
+          <p className="text-landly-slate">Loading…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-svh flex-col bg-landly-navy">
@@ -55,11 +105,15 @@ export default function DashboardPage() {
             <div>
               <span className="text-xs font-medium uppercase tracking-wider text-landly-slate">Wallet Balance</span>
               <p className="mt-1 font-mono text-4xl font-bold text-landly-gold">
-                {formatINR(MOCK_USER.wallet_balance)}
+                {formatINR(walletBalance)}
               </p>
             </div>
-            <button className="rounded-[var(--radius-land)] border border-landly-gold/40 px-6 py-2.5 text-sm font-semibold text-landly-gold transition-all hover:bg-landly-gold/10">
-              Add ₹10,000
+            <button
+              onClick={handleAddFunds}
+              disabled={addingFunds}
+              className="rounded-[var(--radius-land)] border border-landly-gold/40 px-6 py-2.5 text-sm font-semibold text-landly-gold transition-all hover:bg-landly-gold/10 disabled:opacity-50"
+            >
+              {addingFunds ? "Adding…" : "Add ₹10,000"}
             </button>
           </motion.div>
 
@@ -172,8 +226,8 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {MOCK_TRANSACTIONS.slice(0, 5).map((tx) => {
-                    const prop = MOCK_PROPERTIES.find((p) => p.id === tx.property_id);
+                  {transactions.slice(0, 5).map((tx) => {
+                    const prop = tx.property;
                     return (
                       <tr key={tx.id} className="border-b border-landly-slate/5">
                         <td className="py-3 pr-4 text-landly-offwhite">{prop?.title ?? "—"}</td>

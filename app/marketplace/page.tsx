@@ -1,21 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/app/components/Navbar";
 import FilterBar, { type PropertyFilter } from "@/app/components/FilterBar";
 import PropertyCard from "@/app/components/PropertyCard";
 import LiveTicker from "@/app/components/LiveTicker";
-import { MOCK_PROPERTIES } from "@/app/lib/mock-data";
+import { type Property } from "@/app/lib/types";
 
 export default function MarketplacePage() {
   const [filter, setFilter] = useState<PropertyFilter>("All");
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/properties")
+      .then((r) => r.json())
+      .then((data) => setProperties(data ?? []))
+      .catch(() => setProperties([]))
+      .finally(() => setLoading(false));
+  }, []);
 
   const filtered =
     filter === "All"
-      ? MOCK_PROPERTIES
-      : MOCK_PROPERTIES.filter(
-          (p) => p.type === filter.toLowerCase()
-        );
+      ? properties
+      : properties.filter((p) => p.type === filter.toLowerCase());
 
   return (
     <div className="flex min-h-svh flex-col bg-landly-navy pb-14">
@@ -38,7 +46,9 @@ export default function MarketplacePage() {
         </div>
 
         {/* property grid */}
-        {filtered.length === 0 ? (
+        {loading ? (
+          <p className="py-20 text-center text-landly-slate">Loading properties…</p>
+        ) : filtered.length === 0 ? (
           <p className="py-20 text-center text-landly-slate">
             No properties found for this category.
           </p>
