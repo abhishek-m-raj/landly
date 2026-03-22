@@ -28,23 +28,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'shares must be a positive integer' }, { status: 400 });
     }
 
-    const { data, error } = await supabase.rpc('sell_property_shares', {
-      target_property_id: propertyId,
-      requested_shares: shares,
+    const { data, error } = await supabase.rpc('place_order', {
+      p_property_id: propertyId,
+      p_side: 'sell',
+      p_order_type: 'market',
+      p_price: null,
+      p_quantity: shares,
     });
 
     if (error) {
+      const msg = error.message;
       const status =
-        error.message === 'Property not found'
-          ? 404
-          : error.message === 'Unauthorized'
-            ? 401
-            : error.message === 'Not enough shares owned to sell' ||
-                error.message === 'shares must be a positive integer'
-              ? 400
-              : 500;
-
-      return NextResponse.json({ error: error.message }, { status });
+        msg === 'Property not found' ? 404 :
+        msg === 'Unauthorized' ? 401 :
+        msg.includes('wallet') || msg.includes('shares') || msg.includes('positive') || msg.includes('not available') ? 400 :
+        500;
+      return NextResponse.json({ error: msg }, { status });
     }
 
     const result = Array.isArray(data) ? data[0] : data;
@@ -55,10 +54,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Shares sold successfully',
+      message: result.filledQuantity > 0 ? 'Shares sold successfully' : 'No matching buyers found',
       newWalletBalance: result.newWalletBalance,
-      sharesRemainingOwned: result.sharesRemainingOwned,
-      sharesAvailable: result.sharesAvailable,
+      filledQuantity: result.filledQuantity,
+      averagePrice: result.averagePrice,
+      orderId: result.orderId,
+      status: result.status,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error';

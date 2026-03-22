@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   type Property,
   type PricePoint,
   type PropertyMarketData,
+  type Order,
   formatINR,
 } from "@/app/lib/types";
 import { supabase, getAuthHeaders } from "@/lib/supabase";
@@ -71,9 +72,24 @@ export default function PropertyTradingTerminal({
 
   const [walletBalance, setWalletBalance] = useState(initialWalletBalance);
   const [userShares, setUserShares] = useState(0);
+  const [openOrders, setOpenOrders] = useState<Order[]>([]);
 
   const { user: authUser } = useAuth();
   const userId = authUser?.id ?? null;
+
+  const fetchOpenOrders = useCallback(async () => {
+    if (!userId) { setOpenOrders([]); return; }
+    try {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch(`/api/orders?propertyId=${propertyId}`, {
+        headers: authHeaders,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOpenOrders(data);
+      }
+    } catch { /* ignore */ }
+  }, [userId, propertyId]);
 
   useEffect(() => {
     let mounted = true;
@@ -119,6 +135,7 @@ export default function PropertyTradingTerminal({
   useEffect(() => {
     if (!userId) {
       setUserShares(0);
+      setOpenOrders([]);
       return;
     }
 
@@ -131,7 +148,9 @@ export default function PropertyTradingTerminal({
       .then(({ data }) => {
         setUserShares(data?.shares_owned ?? 0);
       });
-  }, [propertyId, userId]);
+
+    fetchOpenOrders();
+  }, [propertyId, userId, fetchOpenOrders]);
 
   const history = useMemo(() => market?.history ?? [], [market]);
   const currentPrice = market?.currentPrice ?? fallbackPrice;
@@ -155,8 +174,9 @@ export default function PropertyTradingTerminal({
     priceLimit && !isNaN(Number(priceLimit))
       ? Number(priceLimit)
       : currentPrice;
+  const isLimitOrder = priceLimit !== "" && !isNaN(Number(priceLimit)) && Number(priceLimit) > 0;
   const totalCost =
-    tab === "buy" ? shares * execPrice : shares * currentPrice;
+    tab === "buy" ? shares * execPrice : shares * (isLimitOrder ? execPrice : currentPrice);
   const estimatedYield = property?.estimated_yield ?? 8.2;
   const isVerified = property?.status ? ["verified", "live", "sold"].includes(property.status) : true;
   const canExecute =
@@ -172,46 +192,91 @@ export default function PropertyTradingTerminal({
     setTrading(true);
     setTradeError("");
 
-    const endpoint = tab === "buy" ? "/api/buy-shares" : "/api/sell-shares";
-    const body = {
-      propertyId,
-      shares,
-    };
-
     try {
       const authHeaders = await getAuthHeaders();
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
 
-      if (res.ok && data.success) {
-        setTradeSuccess(true);
-        if (data.newWalletBalance != null)
-          setWalletBalance(data.newWalletBalance);
-        if (tab === "buy" && data.sharesRemaining != null) {
-          if (property) {
-            property.shares_available = data.sharesRemaining;
+      if (isLimitOrder) {
+        // Use the orders endpoint for limit orders
+        const res = await fetch("/api/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify({
+            propertyId,
+            side: tab,
+            orderType: "limit",
+            price: Number(priceLimit),
+            quantity: shares,
+          }),
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          setTradeSuccess(true);
+          if (data.newWalletBalance != null) setWalletBalance(data.newWalletBalance);
+          if (tab === "buy" && data.filledQuantity > 0) {
+            setUserShares((prev) => prev + data.filledQuantity);
           }
-          setUserShares((prev) => prev + shares);
-        }
-        setShares(1);
-        setPriceLimit("");
-        setTimeout(() => setTradeSuccess(false), 3000);
-
-        if (tab === "sell") {
-          const nextShares = data.sharesRemainingOwned ?? 0;
-          setUserShares(nextShares);
+          if (tab === "sell" && data.filledQuantity > 0) {
+            setUserShares((prev) => prev - data.filledQuantity);
+          }
+          setShares(1);
+          setPriceLimit("");
+          fetchOpenOrders();
+          setTimeout(() => setTradeSuccess(false), 3000);
+        } else {
+          setTradeError(data.error || `${tab} failed`);
         }
       } else {
-        setTradeError(data.error || `${tab} failed`);
+        // Use market order endpoints for backward compat
+        const endpoint = tab === "buy" ? "/api/buy-shares" : "/api/sell-shares";
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify({ propertyId, shares }),
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          setTradeSuccess(true);
+          if (data.newWalletBalance != null) setWalletBalance(data.newWalletBalance);
+          if (tab === "buy") {
+            const filled = data.filledQuantity ?? shares;
+            setUserShares((prev) => prev + filled);
+            if (property && data.sharesRemaining != null) {
+              property.shares_available = data.sharesRemaining;
+            }
+          }
+          if (tab === "sell") {
+            const filled = data.filledQuantity ?? shares;
+            setUserShares((prev) => prev - filled);
+          }
+          setShares(1);
+          setPriceLimit("");
+          fetchOpenOrders();
+          setTimeout(() => setTradeSuccess(false), 3000);
+        } else {
+          setTradeError(data.error || `${tab} failed`);
+        }
       }
     } catch {
       setTradeError("Network error. Please try again.");
     }
     setTrading(false);
+  }
+
+  async function handleCancelOrder(orderId: string) {
+    try {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: "DELETE",
+        headers: authHeaders,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (data.newWalletBalance != null) setWalletBalance(data.newWalletBalance);
+        fetchOpenOrders();
+      }
+    } catch { /* ignore */ }
   }
 
   return (
@@ -392,7 +457,7 @@ export default function PropertyTradingTerminal({
 
               <div>
                 <label className="block text-[10px] uppercase tracking-wider text-landly-slate">
-                  Price Limit (optional)
+                  Price Limit (optional — leave empty for market order)
                 </label>
                 <input
                   type="number"
@@ -442,7 +507,7 @@ export default function PropertyTradingTerminal({
                   ? "Processing…"
                   : tradeSuccess
                     ? "✓ Success"
-                    : `${tab === "buy" ? "Buy" : "Sell"} ${shares} Share${shares > 1 ? "s" : ""}`}
+                    : `${isLimitOrder ? "Limit " : ""}${tab === "buy" ? "Buy" : "Sell"} ${shares} Share${shares > 1 ? "s" : ""}`}
               </motion.button>
 
               {tab === "buy" && (
@@ -467,10 +532,13 @@ export default function PropertyTradingTerminal({
         <div className="mt-6 grid gap-5 lg:grid-cols-2">
           <div>
             <h3 className="mb-2 font-sans text-sm font-semibold text-landly-offwhite">
-              Buyer Interest
+              Bids (Buy Orders)
             </h3>
             <div className="space-y-1 rounded-(--radius-land) bg-landly-navy/70 p-2">
-              {market.orderbook.bids.slice(0, 8).map((bid, index) => (
+              {market.orderbook.bids.length === 0 ? (
+                <p className="py-3 text-center text-[11px] text-landly-slate">No buy orders</p>
+              ) : (
+                market.orderbook.bids.slice(0, 8).map((bid, index) => (
                 <div
                   key={bid.id}
                   className="flex items-center gap-2 text-[11px]"
@@ -492,16 +560,19 @@ export default function PropertyTradingTerminal({
                     {formatINR(bid.price)}
                   </span>
                 </div>
-              ))}
+              )))}
             </div>
           </div>
 
           <div>
             <h3 className="mb-2 font-sans text-sm font-semibold text-landly-offwhite">
-              Seller Interest
+              Asks (Sell Orders)
             </h3>
             <div className="space-y-1 rounded-(--radius-land) bg-landly-navy/70 p-2">
-              {market.orderbook.asks.slice(0, 8).map((ask, index) => (
+              {market.orderbook.asks.length === 0 ? (
+                <p className="py-3 text-center text-[11px] text-landly-slate">No sell orders</p>
+              ) : (
+                market.orderbook.asks.slice(0, 8).map((ask, index) => (
                 <div
                   key={ask.id}
                   className="flex items-center gap-2 text-[11px]"
@@ -523,8 +594,57 @@ export default function PropertyTradingTerminal({
                     </span>
                   </div>
                 </div>
-              ))}
+              )))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Spread info */}
+      {market && market.orderbook.spread > 0 && (
+        <div className="mt-3 flex items-center justify-center gap-4 text-[10px] uppercase tracking-wider text-landly-slate">
+          <span>Spread: <span className="font-mono text-landly-offwhite">{formatINR(market.orderbook.spread)}</span></span>
+          <span>Mid: <span className="font-mono text-landly-offwhite">{formatINR(market.orderbook.midPrice)}</span></span>
+        </div>
+      )}
+
+      {/* Open orders */}
+      {authUser && openOrders.length > 0 && (
+        <div className="mt-6">
+          <h3 className="mb-2 font-sans text-sm font-semibold text-landly-offwhite">
+            Your Open Orders
+          </h3>
+          <div className="space-y-1.5 rounded-(--radius-land) bg-landly-navy/70 p-3">
+            {openOrders.map((order) => (
+              <div
+                key={order.id}
+                className="flex items-center justify-between rounded bg-landly-navy-deep/60 px-3 py-2"
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`text-[10px] font-bold uppercase ${
+                    order.side === "buy" ? "text-landly-green" : "text-landly-red"
+                  }`}>
+                    {order.side}
+                  </span>
+                  <span className="font-mono text-xs text-landly-offwhite">
+                    {order.filled_quantity}/{order.quantity} @ {formatINR(order.price ?? 0)}
+                  </span>
+                  <span className={`rounded px-1 py-0.5 text-[9px] font-semibold uppercase ${
+                    order.status === "partial"
+                      ? "bg-landly-gold/20 text-landly-gold"
+                      : "bg-landly-slate/20 text-landly-slate"
+                  }`}>
+                    {order.status}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleCancelOrder(order.id)}
+                  className="rounded px-2 py-1 text-[10px] font-semibold text-landly-red transition-colors hover:bg-landly-red/10"
+                >
+                  Cancel
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}
