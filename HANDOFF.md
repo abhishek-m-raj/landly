@@ -220,10 +220,50 @@ All previously listed mismatches have been resolved. ✅
 
 ## Auth Contract
 
-- **Signup:** `supabase.auth.signUp({ email, password })` — called from frontend client
-- **Login:** `supabase.auth.signInWithPassword({ email, password })` — called from frontend client
-- **On signup:** Frontend inserts into `profiles` with role selection. Backend should also set up a Supabase trigger as fallback.
+- **Signup (email):** `supabase.auth.signUp({ email, password, options: { data: { full_name, role } } })` — called from frontend client
+- **Signup (Google):** `supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/marketplace' } })` — called from frontend client
+- **Login (email):** `supabase.auth.signInWithPassword({ email, password })` — called from frontend client
+- **Login (Google):** Same as Google signup (Supabase handles both via OAuth)
+- **On signup:** A database trigger (`handle_new_user`) automatically creates the `profiles` row. Frontend must NOT manually insert into `profiles`. Pass `full_name` and `role` via `options.data` metadata.
 - **Session:** Frontend reads `supabase.auth.getUser()` for user ID, passes `userId` to API routes.
+
+### ⚠️ Supabase Dashboard Setup Required (2026-03-22)
+
+The following must be configured in the Supabase Dashboard for auth to work:
+
+1. **Create `handle_new_user` trigger** — Run this SQL in SQL Editor:
+   ```sql
+   CREATE OR REPLACE FUNCTION public.handle_new_user()
+   RETURNS trigger
+   LANGUAGE plpgsql
+   SECURITY DEFINER SET search_path = ''
+   AS $$
+   BEGIN
+     INSERT INTO public.profiles (id, email, full_name, role, wallet_balance)
+     VALUES (
+       NEW.id,
+       NEW.email,
+       COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', ''),
+       COALESCE(NEW.raw_user_meta_data->>'role', 'investor'),
+       10000
+     );
+     RETURN NEW;
+   END;
+   $$;
+
+   CREATE OR REPLACE TRIGGER on_auth_user_created
+     AFTER INSERT ON auth.users
+     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+   ```
+
+2. **Enable Google OAuth** — Authentication → Providers → Google → Enable, add Client ID + Secret from Google Cloud Console. Set redirect URI to: `https://kzyigkrhgyubgwecnyok.supabase.co/auth/v1/callback`
+
+3. **Disable email confirmation** (recommended for dev) — Authentication → Providers → Email → toggle off "Confirm email"
+
+### Auth Changes Implemented in Code (2026-03-22)
+- `app/signup/page.tsx` — Removed manual `profiles` insert. Now passes `full_name` and `role` via `options.data` metadata. Added Google sign-in button.
+- `app/login/page.tsx` — Added Google sign-in button.
+- `app/api/auth/callback/route.ts` — Created OAuth callback route to exchange code for session.
 
 ---
 

@@ -16,7 +16,7 @@
             ],
             "console": "internalConsole",
             "serverReadyAction": {
-                "action": "debugWithChrome",
+                "action": "openExternally",
                 "pattern": "http://localhost:(\\d+)",
                 "uriFormat": "http://localhost:%s"
             }
