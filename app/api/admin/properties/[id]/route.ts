@@ -6,6 +6,7 @@ import {
   parseNumeric,
   requireAdmin,
 } from "@/app/api/admin/_shared";
+import { withComputedPropertyFields } from "@/app/api/properties/_shared";
 
 interface PropertyPatchPayload {
   title?: string;
@@ -233,7 +234,7 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, property: data });
+  return NextResponse.json({ success: true, property: withComputedPropertyFields(data) });
 }
 
 export async function DELETE(

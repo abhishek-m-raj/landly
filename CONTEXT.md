@@ -284,7 +284,6 @@ Avatar dropdown contents:
 - `Add Funds` button that expands an inline popover with amount input + confirm
   - on success: shows green checkmark + new balance, auto-dismisses
   - calls `POST /api/wallet` with `{ amount }`
-  - wallet top-ups are capped server-side for demo safety
 - link to dashboard labeled `Profile`
 - `Log out` button in red tone
 
@@ -766,7 +765,7 @@ Google signup/login uses:
 ```ts
 supabase.auth.signInWithOAuth({
   provider: 'google',
-  options: { redirectTo: window.location.origin + '/api/auth/callback?next=...' },
+  options: { redirectTo: window.location.origin + '/marketplace' },
 })
 ```
 
@@ -819,9 +818,7 @@ Client-side code calls `getAuthHeaders()` from `lib/supabase.ts` to attach the B
 - `buy-shares` trusts the DB price, not a client-provided price
 - `sell-shares` computes average cost basis and deletes holding rows when shares reach zero
 - `wallet` now derives the acting user from the Bearer-authenticated Supabase session, rejects mismatched `userId` values, and returns the updated `wallet_balance` from the write itself
-- `wallet` enforces a server-side top-up ceiling to avoid unrealistic demo balances
 - `buy-shares` and `sell-shares` now execute through transactional Postgres functions (`buy_property_shares`, `sell_property_shares`) so wallet/property/holding/transaction writes are atomic
-- `bot.js` now records demo activity through transactional Postgres function `record_demo_trade` instead of inserting transactions and decrementing inventory manually
 - properties now support retained ownership via `fraction_listed`, so owners can fractionalize only part of an asset while retaining the remainder
 - properties now support nullable `estimated_yield` and JSON `documents` metadata for richer investment and trust signals
 - transactions now store an explicit `type` of `buy` or `sell` instead of relying on naming conventions
@@ -860,10 +857,9 @@ This means the interface looks like a trading product even though the market dep
 
 What it does:
 - reads `.env.local`
-- uses the service-role key from `.env.local`
 - fetches live properties
-- records random demo transactions every 3 to 8 seconds through `record_demo_trade`
-- atomically decrements `shares_available` in the same database function
+- inserts random transactions every 3 to 8 seconds
+- decrements `shares_available`
 
 Why it exists:
 - keep the live ticker active during demos
@@ -876,7 +872,6 @@ Why it exists:
 
 - Property images are live Unsplash URLs stored in `image_url`. PropertyCard and property detail hero render the real image when present and fall back to a gradient placeholder when empty. `next.config.ts` whitelists `images.unsplash.com`. A seed script (`scripts/seed-images.ts`) can re-apply the canonical URLs.
 - Admin APIs now require an authenticated admin user and the admin client sends auth headers with every request. The `/admin` page itself is still a visible route and could be tightened further with route-level UI gating.
-- Admin UI visibility is also limited client-side to an explicit allowlist of email addresses.
 - `app/lib/mock-data.ts` is deprecated and can be removed.
 - Stub directories exist and may mislead collaborators if assumed to be active surfaces.
 - Marketplace previously crashed if API returned an error object instead of an array; frontend should be made more defensive.

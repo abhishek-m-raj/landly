@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
+  type Property,
   type PricePoint,
   type PropertyMarketData,
   formatINR,
@@ -54,7 +55,7 @@ export default function PropertyTradingTerminal({
 }: {
   propertyId: string;
   fallbackPrice: number;
-  property?: { shares_available?: number; total_shares?: number };
+  property?: Pick<Property, "shares_available" | "total_shares" | "status" | "estimated_yield">;
   walletBalance?: number;
 }) {
   const [market, setMarket] = useState<PropertyMarketData | null>(null);
@@ -156,6 +157,8 @@ export default function PropertyTradingTerminal({
       : currentPrice;
   const totalCost =
     tab === "buy" ? shares * execPrice : shares * currentPrice;
+  const estimatedYield = property?.estimated_yield ?? 8.2;
+  const isVerified = property?.status ? ["verified", "live", "sold"].includes(property.status) : true;
   const canExecute =
     tab === "buy"
       ? shares > 0 &&
@@ -273,32 +276,63 @@ export default function PropertyTradingTerminal({
           {/* right: buy/sell ticket */}
           <div>
             {!authUser ? (
-              <div className="flex flex-col items-center justify-center rounded-(--radius-land) border border-landly-slate/20 bg-landly-navy/50 px-6 py-12 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-landly-gold/10">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-landly-gold">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
+              <div className="rounded-(--radius-land) border border-landly-slate/20 bg-landly-navy/50 p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-landly-gold">
+                      Investment access
+                    </p>
+                    <h3 className="mt-2 font-sans text-lg font-semibold text-landly-offwhite">
+                      Browse freely. Sign in only when you&apos;re ready to invest.
+                    </h3>
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-landly-gold/10">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-landly-gold">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  </div>
                 </div>
-                <p className="mt-4 text-sm font-medium text-landly-offwhite">
-                  Sign in to invest
+
+                <p className="mt-4 text-sm leading-relaxed text-landly-slate">
+                  Property information, performance, and verification remain open to everyone. Authentication only starts when you want to buy or sell shares.
                 </p>
-                <p className="mt-1 text-xs text-landly-slate">
-                  Log in or sign up to buy and sell shares
-                </p>
-                <div className="mt-5 flex w-full flex-col gap-2">
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-(--radius-land) border border-landly-slate/10 bg-landly-navy-deep/60 p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-landly-slate">Minimum ticket</p>
+                    <p className="mt-1 font-mono text-sm font-semibold text-landly-gold">{formatINR(currentPrice)}</p>
+                  </div>
+                  <div className="rounded-(--radius-land) border border-landly-slate/10 bg-landly-navy-deep/60 p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-landly-slate">Verification</p>
+                    <p className="mt-1 text-sm font-semibold text-landly-green">{isVerified ? "Verified" : "In review"}</p>
+                  </div>
+                  <div className="rounded-(--radius-land) border border-landly-slate/10 bg-landly-navy-deep/60 p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-landly-slate">Est. yield</p>
+                    <p className="mt-1 font-mono text-sm font-semibold text-landly-gold">~{estimatedYield.toFixed(1)}%</p>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex w-full flex-col gap-2 sm:flex-row">
                   <Link
                     href="/login"
-                    className="block w-full rounded py-2.5 text-xs font-semibold text-white bg-landly-green transition-all hover:brightness-110"
+                    className="inline-flex flex-1 items-center justify-center rounded-(--radius-land) bg-landly-green px-4 py-3 text-sm font-semibold text-white transition-all hover:brightness-110"
                   >
-                    Log in
+                    Log in to invest
                   </Link>
                   <Link
                     href="/signup"
-                    className="block w-full rounded border border-landly-slate/20 py-2.5 text-xs font-semibold text-landly-offwhite transition-all hover:border-landly-slate/40"
+                    className="inline-flex flex-1 items-center justify-center rounded-(--radius-land) border border-landly-slate/20 px-4 py-3 text-sm font-semibold text-landly-offwhite transition-all hover:border-landly-slate/40"
                   >
-                    Sign up
+                    Create account
                   </Link>
+                </div>
+
+                <div className="mt-5 rounded-(--radius-land) border border-landly-slate/10 bg-landly-navy-deep/40 px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-landly-slate">What happens after login</p>
+                  <p className="mt-1 text-xs leading-relaxed text-landly-slate">
+                    You&apos;ll be able to choose quantity, review the total ticket size, and complete the order from this same panel.
+                  </p>
                 </div>
               </div>
             ) : (

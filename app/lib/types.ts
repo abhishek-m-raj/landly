@@ -19,6 +19,7 @@ export interface Property {
   image_url: string;
   documents: PropertyDocument[];
   status: "pending" | "verified" | "live" | "rejected" | "sold";
+  verification_status?: Property["status"];
   listed_shares?: number;
   shares_sold?: number;
   percent_funded?: number;

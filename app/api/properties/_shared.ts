@@ -42,6 +42,7 @@ export function withComputedPropertyFields<T extends PropertyMetricsShape>(prope
   return {
     ...property,
     fraction_listed: fractionListed,
+    verification_status: (property as { status?: unknown }).status,
     listed_shares: listedShares,
     shares_sold: sharesSold,
     percent_funded: getPercentFunded(property),

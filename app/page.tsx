@@ -189,7 +189,7 @@ export default function Home() {
               className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center"
             >
               <Link
-                href="/list-property"
+                href="/for-landowners"
                 className="group relative inline-flex h-12 items-center justify-center rounded-[var(--radius-land)] bg-landly-green px-8 text-sm font-semibold text-white transition-all hover:brightness-110"
               >
                 <span className="absolute inset-0 rounded-[var(--radius-land)] opacity-0 shadow-[0_0_24px_rgba(5,150,105,0.4)] transition-opacity group-hover:opacity-100" />
@@ -386,11 +386,11 @@ export default function Home() {
             </motion.p>
             <motion.div variants={fadeUp(0.15)} className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
-                href="/list-property"
+                href="/for-landowners"
                 className="group relative inline-flex h-14 items-center justify-center rounded-[var(--radius-land)] bg-landly-green px-10 text-base font-semibold text-white transition-all hover:brightness-110"
               >
                 <span className="absolute inset-0 rounded-[var(--radius-land)] opacity-0 shadow-[0_0_32px_rgba(5,150,105,0.35)] transition-opacity group-hover:opacity-100" />
-                <span className="relative">List Your Property</span>
+                <span className="relative">For Landowners</span>
               </Link>
               <Link
                 href="/marketplace"

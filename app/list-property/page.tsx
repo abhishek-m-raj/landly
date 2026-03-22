@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "@/app/components/Navbar";
 import { getAuthHeaders } from "@/lib/supabase";
 import { useAuth } from "@/app/components/AuthProvider";
+import { formatINR } from "@/app/lib/types";
 
 type PropertyType = "agricultural" | "residential" | "commercial";
 
@@ -15,7 +16,6 @@ interface FormData {
   description: string;
   total_value: string;
   total_shares: string;
-  share_price: string;
 }
 
 const STEPS = ["Basics", "Details", "Review"] as const;
@@ -44,18 +44,31 @@ export default function ListPropertyPage() {
     description: "",
     total_value: "",
     total_shares: "",
-    share_price: "",
   });
 
   const update = (key: keyof FormData, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
   const { user } = useAuth();
 
+  const totalValueNumber = Number(form.total_value);
+  const totalSharesNumber = Number(form.total_shares);
+  const calculatedSharePrice =
+    Number.isFinite(totalValueNumber) &&
+    Number.isFinite(totalSharesNumber) &&
+    totalValueNumber > 0 &&
+    totalSharesNumber > 0
+      ? totalValueNumber / totalSharesNumber
+      : null;
+
+  const formattedSharePrice = calculatedSharePrice != null
+    ? formatINR(calculatedSharePrice)
+    : "Awaiting inputs";
+
   const canNext =
     step === 0
       ? form.title && form.location && form.type
       : step === 1
-        ? form.description && form.total_value && form.total_shares && form.share_price
+        ? form.description && form.total_value && form.total_shares && calculatedSharePrice != null
         : true;
 
   const handleSubmit = async () => {
@@ -74,7 +87,7 @@ export default function ListPropertyPage() {
           description: form.description,
           totalValue: Number(form.total_value),
           totalShares: Number(form.total_shares),
-          sharePrice: Number(form.share_price),
+          sharePrice: calculatedSharePrice,
           imageUrl: "",
         }),
       });
@@ -220,7 +233,7 @@ export default function ListPropertyPage() {
                       onChange={(e) => update("description", e.target.value)}
                     />
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-landly-slate">
                         Total Value (₹)
@@ -245,17 +258,21 @@ export default function ListPropertyPage() {
                         onChange={(e) => update("total_shares", e.target.value)}
                       />
                     </div>
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-landly-slate">
-                        Price per Share (₹)
-                      </label>
-                      <input
-                        className={inputClass}
-                        type="number"
-                        placeholder="500"
-                        value={form.share_price}
-                        onChange={(e) => update("share_price", e.target.value)}
-                      />
+                  </div>
+
+                  <div className="rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/40 p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wider text-landly-slate">
+                          Calculated price per share
+                        </p>
+                        <p className="mt-1 text-sm leading-relaxed text-landly-slate">
+                          Landly calculates this automatically from total value and total shares.
+                        </p>
+                      </div>
+                      <p className={`font-mono text-2xl font-semibold ${calculatedSharePrice != null ? "text-landly-gold" : "text-landly-slate"}`}>
+                        {formattedSharePrice}
+                      </p>
                     </div>
                   </div>
                 </motion.div>
@@ -272,7 +289,7 @@ export default function ListPropertyPage() {
                         { label: "Type", value: form.type.charAt(0).toUpperCase() + form.type.slice(1) },
                         { label: "Total Value", value: `₹${Number(form.total_value).toLocaleString("en-IN")}` },
                         { label: "Total Shares", value: form.total_shares },
-                        { label: "Price / Share", value: `₹${Number(form.share_price).toLocaleString("en-IN")}` },
+                        { label: "Price / Share", value: formattedSharePrice },
                       ].map((row) => (
                         <div key={row.label} className="flex items-baseline justify-between border-b border-landly-slate/5 pb-3">
                           <span className="text-xs uppercase tracking-wider text-landly-slate">{row.label}</span>

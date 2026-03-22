@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { withComputedPropertyFields } from '@/app/api/properties/_shared';
 
 export async function GET(
   request: Request,
@@ -17,5 +18,5 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json(withComputedPropertyFields(data));
 }
