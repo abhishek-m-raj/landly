@@ -81,6 +81,24 @@ export interface PropertyOrderBook {
   lastUpdated: string;
 }
 
+export type OrderSide = "buy" | "sell";
+export type OrderType = "market" | "limit";
+export type OrderStatus = "open" | "partial" | "filled" | "cancelled";
+
+export interface Order {
+  id: string;
+  user_id: string;
+  property_id: string;
+  side: OrderSide;
+  order_type: OrderType;
+  price: number | null;
+  quantity: number;
+  filled_quantity: number;
+  status: OrderStatus;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PropertyMarketData {
   propertyId: string;
   currency: "INR";
