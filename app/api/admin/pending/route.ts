@@ -5,7 +5,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('properties')
     .select('*')
-    .eq('status', 'live');
+    .eq('status', 'pending');
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

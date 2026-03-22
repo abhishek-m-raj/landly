@@ -1,21 +1,20 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-export async function GET(
+export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('properties')
-    .select('*')
-    .eq('id', id)
-    .single();
+    .update({ status: 'rejected' })
+    .eq('id', id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json({ success: true, status: 'rejected' });
 }

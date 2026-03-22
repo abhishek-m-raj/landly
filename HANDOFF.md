@@ -207,15 +207,7 @@ Add ₹10,000 to user wallet.
 
 ## Known Mismatches to Fix (Backend)
 
-| File | Issue | Fix needed |
-|------|-------|-----------|
-| `app/api/wallet/route.ts` | Queries `users` table | Change to `profiles` table |
-| `app/api/buy-shares/route.ts` | Uses `shares_amount`, `amount_paid` columns | Change to `shares`, `price_per_share`, `total_amount` |
-| `app/api/buy-shares/route.ts` | Uses `transaction_type` column | Remove — not in schema |
-| `app/api/buy-shares/route.ts` | Holdings uses `shares` column | Change to `shares_owned` + add `total_invested` |
-| `app/api/buy-shares/route.ts` | Does not deduct wallet balance | Should deduct total_amount from profiles.wallet_balance |
-| `app/api/buy-shares/route.ts` | Does not return updated state | Should return `newWalletBalance` and `sharesRemaining` |
-| `app/api/properties/route.ts` | Returns ALL properties | Should filter to `status = 'live'` |
+All previously listed mismatches have been resolved. ✅
 
 ---
 
@@ -247,17 +239,17 @@ Add ₹10,000 to user wallet.
 ### Backend
 | Endpoint | Status |
 |----------|--------|
-| `GET /api/properties` | 🟡 Needs fix (filter by live) |
+| `GET /api/properties` | 🟢 Done |
 | `GET /api/properties/[id]` | 🟢 Done |
-| `POST /api/buy-shares` | 🟡 Needs fix (schema mismatch) |
-| `POST /api/wallet` | 🟡 Needs fix (users → profiles) |
-| `GET /api/wallet` | 🔴 Not started |
-| `POST /api/properties/list` | 🔴 Not started |
-| `POST /api/admin/approve/[id]` | 🔴 Not started |
-| `POST /api/admin/reject/[id]` | 🔴 Not started |
-| `GET /api/admin/pending` | 🔴 Not started |
-| Bot script | 🔴 Not started |
+| `POST /api/buy-shares` | 🟢 Done |
+| `POST /api/wallet` | 🟢 Done |
+| `GET /api/wallet` | 🟢 Done |
+| `POST /api/properties/list` | 🟢 Done |
+| `POST /api/admin/approve/[id]` | 🟢 Done |
+| `POST /api/admin/reject/[id]` | 🟢 Done |
+| `GET /api/admin/pending` | 🟢 Done |
+| Bot script | 🟢 Done |
 
 ---
 
-_Last updated: 2026-03-22 — Initial creation by frontend agent_
+_Last updated: 2026-03-22 — Backend implementation complete_
