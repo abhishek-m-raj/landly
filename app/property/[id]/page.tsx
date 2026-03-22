@@ -1,0 +1,164 @@
+"use client";
+
+import { use } from "react";
+import { motion } from "framer-motion";
+import { notFound } from "next/navigation";
+import Navbar from "@/app/components/Navbar";
+import SharePurchaseWidget from "@/app/components/SharePurchaseWidget";
+import TransactionFeed from "@/app/components/TransactionFeed";
+import {
+  getPropertyById,
+  formatINR,
+  percentSold,
+  MOCK_USER,
+} from "@/app/lib/mock-data";
+
+const TYPE_COLORS: Record<string, string> = {
+  agricultural: "bg-emerald-600/80",
+  residential: "bg-sky-600/80",
+  commercial: "bg-landly-gold/80",
+};
+
+const fadeUp = (delay: number) => ({
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number], delay },
+  },
+});
+
+export default function PropertyDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const property = getPropertyById(id);
+
+  if (!property) return notFound();
+
+  const sold = percentSold(property);
+
+  return (
+    <div className="flex min-h-svh flex-col bg-landly-navy">
+      <Navbar />
+
+      {/* hero image area */}
+      <div className="relative h-64 w-full overflow-hidden md:h-80">
+        <div className="absolute inset-0 bg-gradient-to-br from-landly-navy-deep via-landly-navy to-landly-navy-deep">
+          <div
+            className="absolute inset-0 opacity-20"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle at 40% 50%, rgba(245,158,11,0.2) 0%, transparent 60%)",
+            }}
+          />
+        </div>
+        {/* overlay info */}
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-landly-navy/90 to-transparent px-6 pb-6 pt-16 md:px-12">
+          <span
+            className={`inline-block rounded-full px-3 py-1 text-xs font-semibold text-white ${TYPE_COLORS[property.type] || "bg-landly-slate"}`}
+          >
+            {property.type.charAt(0).toUpperCase() + property.type.slice(1)}
+          </span>
+          <h1 className="mt-2 font-sans text-2xl font-bold text-landly-offwhite md:text-3xl">
+            {property.title}
+          </h1>
+          <p className="mt-1 text-sm text-landly-slate">{property.location}</p>
+        </div>
+      </div>
+
+      {/* content */}
+      <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-10 md:px-12">
+        <div className="grid gap-10 lg:grid-cols-[1fr_380px]">
+          {/* left column */}
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={{
+              visible: { transition: { staggerChildren: 0.1 } },
+            }}
+          >
+            {/* description */}
+            <motion.section variants={fadeUp(0)}>
+              <h2 className="font-sans text-lg font-semibold text-landly-offwhite">
+                About this property
+              </h2>
+              <p className="mt-3 leading-relaxed text-landly-slate text-sm">
+                {property.description}
+              </p>
+            </motion.section>
+
+            {/* key details */}
+            <motion.section variants={fadeUp(0.1)} className="mt-8">
+              <h2 className="font-sans text-lg font-semibold text-landly-offwhite">
+                Investment Details
+              </h2>
+              <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                {[
+                  { label: "Total Value", value: formatINR(property.total_value) },
+                  { label: "Share Price", value: formatINR(property.share_price) },
+                  { label: "Total Shares", value: property.total_shares.toString() },
+                  { label: "Available", value: property.shares_available.toString() },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-[var(--radius-land)] bg-landly-navy-deep/50 p-4">
+                    <span className="block font-mono text-lg font-semibold text-landly-gold">
+                      {item.value}
+                    </span>
+                    <span className="block mt-1 text-[10px] uppercase tracking-wider text-landly-slate">
+                      {item.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* progress */}
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-xs text-landly-slate">
+                  <span>{sold}% funded</span>
+                  <span>
+                    {property.total_shares - property.shares_available} / {property.total_shares} shares sold
+                  </span>
+                </div>
+                <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-landly-slate/20">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${sold}%` }}
+                    transition={{ duration: 1.2, ease: "easeOut" }}
+                    className="h-full rounded-full bg-landly-green"
+                  />
+                </div>
+              </div>
+            </motion.section>
+
+            {/* documents placeholder */}
+            <motion.section variants={fadeUp(0.2)} className="mt-8">
+              <h2 className="font-sans text-lg font-semibold text-landly-offwhite">
+                Documents
+              </h2>
+              <div className="mt-3 rounded-[var(--radius-land)] border border-dashed border-landly-slate/20 px-6 py-8 text-center">
+                <p className="text-sm text-landly-slate">
+                  Property documents will appear here after verification
+                </p>
+              </div>
+            </motion.section>
+
+            {/* transaction feed */}
+            <motion.section variants={fadeUp(0.3)} className="mt-10">
+              <TransactionFeed propertyId={property.id} />
+            </motion.section>
+          </motion.div>
+
+          {/* right column — purchase widget (sticky) */}
+          <div className="lg:sticky lg:top-24 lg:self-start">
+            <SharePurchaseWidget
+              property={property}
+              walletBalance={MOCK_USER.wallet_balance}
+            />
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
