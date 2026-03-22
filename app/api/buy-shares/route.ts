@@ -4,11 +4,11 @@ import { supabase } from '@/lib/supabase';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { propertyId, userId, shares, pricePerShare } = body;
+    const { propertyId, userId, shares } = body;
 
-    if (!propertyId || !userId || shares == null || !pricePerShare) {
+    if (!propertyId || !userId || shares == null) {
       return NextResponse.json(
-        { error: 'Missing required fields: propertyId, userId, shares, pricePerShare' },
+        { error: 'Missing required fields: propertyId, userId, shares' },
         { status: 400 }
       );
     }
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
       .select('id, shares_owned, total_invested')
       .eq('user_id', userId)
       .eq('property_id', propertyId)
-      .single();
+      .maybeSingle();
 
     if (existingHolding) {
       const { error: holdingError } = await supabase

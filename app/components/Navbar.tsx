@@ -12,6 +12,7 @@ interface NavbarProps {
 const NAV_LINKS = [
   { href: "/marketplace", label: "Marketplace" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/admin", label: "Admin" },
 ];
 
 export default function Navbar({ transparent = false }: NavbarProps) {
@@ -58,13 +59,13 @@ export default function Navbar({ transparent = false }: NavbarProps) {
         <div className="hidden items-center gap-3 md:flex">
           <Link
             href="/login"
-            className="rounded-[var(--radius-land)] px-5 py-2 text-sm font-medium text-landly-offwhite/80 transition-colors hover:text-landly-offwhite"
+            className="rounded-(--radius-land) px-5 py-2 text-sm font-medium text-landly-offwhite/80 transition-colors hover:text-landly-offwhite"
           >
             Log in
           </Link>
           <Link
             href="/signup"
-            className="rounded-[var(--radius-land)] bg-landly-green px-5 py-2 text-sm font-semibold text-white transition-all hover:brightness-110"
+            className="rounded-(--radius-land) bg-landly-green px-5 py-2 text-sm font-semibold text-white transition-all hover:brightness-110"
           >
             Sign up
           </Link>
@@ -124,7 +125,7 @@ export default function Navbar({ transparent = false }: NavbarProps) {
               <Link
                 href="/signup"
                 onClick={() => setMobileOpen(false)}
-                className="mt-2 block rounded-[var(--radius-land)] bg-landly-green px-5 py-3 text-center text-sm font-semibold text-white"
+                className="mt-2 block rounded-(--radius-land) bg-landly-green px-5 py-3 text-center text-sm font-semibold text-white"
               >
                 Sign up
               </Link>

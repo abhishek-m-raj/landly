@@ -4,7 +4,7 @@ import { use, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { notFound } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
-import SharePurchaseWidget from "@/app/components/SharePurchaseWidget";
+import PropertyTradingTerminal from "@/app/components/PropertyTradingTerminal";
 import TransactionFeed from "@/app/components/TransactionFeed";
 import { type Property, formatINR, percentSold } from "@/app/lib/types";
 import { supabase } from "@/lib/supabase";
@@ -101,15 +101,13 @@ export default function PropertyDetailPage({
 
       {/* content */}
       <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-10 md:px-12">
-        <div className="grid gap-10 lg:grid-cols-[1fr_380px]">
-          {/* left column */}
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={{
-              visible: { transition: { staggerChildren: 0.1 } },
-            }}
-          >
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={{
+            visible: { transition: { staggerChildren: 0.1 } },
+          }}
+        >
             {/* description */}
             <motion.section variants={fadeUp(0)}>
               <h2 className="font-sans text-lg font-semibold text-landly-offwhite">
@@ -162,8 +160,18 @@ export default function PropertyDetailPage({
               </div>
             </motion.section>
 
+            {/* price chart and orderbook */}
+            <motion.div variants={fadeUp(0.2)} className="mt-8">
+              <PropertyTradingTerminal
+                propertyId={property.id}
+                fallbackPrice={property.share_price}
+                property={property}
+                walletBalance={walletBalance}
+              />
+            </motion.div>
+
             {/* documents placeholder */}
-            <motion.section variants={fadeUp(0.2)} className="mt-8">
+            <motion.section variants={fadeUp(0.25)} className="mt-8">
               <h2 className="font-sans text-lg font-semibold text-landly-offwhite">
                 Documents
               </h2>
@@ -175,19 +183,10 @@ export default function PropertyDetailPage({
             </motion.section>
 
             {/* transaction feed */}
-            <motion.section variants={fadeUp(0.3)} className="mt-10">
+            <motion.section variants={fadeUp(0.35)} className="mt-10">
               <TransactionFeed propertyId={property.id} />
             </motion.section>
           </motion.div>
-
-          {/* right column — purchase widget (sticky) */}
-          <div className="lg:sticky lg:top-24 lg:self-start">
-            <SharePurchaseWidget
-              property={property}
-              walletBalance={walletBalance}
-            />
-          </div>
-        </div>
       </main>
     </div>
   );

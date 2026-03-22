@@ -43,6 +43,41 @@ export interface UserProfile {
   wallet_balance: number;
 }
 
+export interface PricePoint {
+  timestamp: string;
+  price: number;
+  volume: number;
+}
+
+export interface OrderBookLevel {
+  id: string;
+  side: "bid" | "ask";
+  price: number;
+  quantity: number;
+}
+
+export interface PropertyOrderBook {
+  bids: OrderBookLevel[];
+  asks: OrderBookLevel[];
+  spread: number;
+  midPrice: number;
+  totalBidVolume: number;
+  totalAskVolume: number;
+  lastUpdated: string;
+}
+
+export interface PropertyMarketData {
+  propertyId: string;
+  currency: "INR";
+  currentPrice: number;
+  change24hAbs: number;
+  change24hPct: number;
+  history: PricePoint[];
+  sharesAvailable?: number;
+  totalShares?: number;
+  orderbook: PropertyOrderBook;
+}
+
 export function formatINR(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
