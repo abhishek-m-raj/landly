@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("transactions")
-    .select("id, user_id, property_id, user_name, shares, price_per_share, total_amount, created_at, property:properties(id, title, location)")
+    .select("id, user_id, property_id, user_name, shares, price_per_share, total_amount, type, created_at, property:properties(id, title, location)")
     .order("created_at", { ascending: false })
     .limit(limit);
 

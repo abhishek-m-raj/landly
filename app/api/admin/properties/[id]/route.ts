@@ -18,6 +18,9 @@ interface PropertyPatchPayload {
   share_price?: number | string;
   image_url?: string;
   status?: string;
+  fraction_listed?: number | string;
+  estimated_yield?: number | string | null;
+  documents?: Array<{ name?: string; verified?: boolean }>;
 }
 
 export async function PATCH(
@@ -39,7 +42,7 @@ export async function PATCH(
     return jsonError("Invalid JSON payload");
   }
 
-  const updates: Record<string, string | number> = {};
+  const updates: Record<string, unknown> = {};
 
   if (body.title !== undefined) {
     if (typeof body.title !== "string" || body.title.trim().length < 3) {
@@ -119,14 +122,60 @@ export async function PATCH(
     updates.shares_available = sharesAvailable;
   }
 
+  const fractionListed = parseNumeric(body.fraction_listed);
+  if (body.fraction_listed !== undefined) {
+    if (
+      fractionListed === null ||
+      !Number.isInteger(fractionListed) ||
+      fractionListed < 1 ||
+      fractionListed > 100
+    ) {
+      return jsonError("fraction_listed must be an integer between 1 and 100");
+    }
+    updates.fraction_listed = fractionListed;
+  }
+
+  const estimatedYield = parseNumeric(body.estimated_yield);
+  if (body.estimated_yield !== undefined) {
+    if (estimatedYield !== null && (estimatedYield < 0 || estimatedYield > 100)) {
+      return jsonError("estimated_yield must be between 0 and 100");
+    }
+    updates.estimated_yield = estimatedYield === null ? null : Math.round(estimatedYield * 100) / 100;
+  }
+
+  if (body.documents !== undefined) {
+    if (!Array.isArray(body.documents)) {
+      return jsonError("documents must be an array");
+    }
+
+    const documents = [] as Array<{ name: string; verified: boolean }>;
+    for (const [index, document] of body.documents.entries()) {
+      const name = typeof document?.name === "string" ? document.name.trim() : "";
+      if (!name) {
+        return jsonError(`documents[${index}].name must be a non-empty string`);
+      }
+
+      documents.push({
+        name,
+        verified: Boolean(document?.verified),
+      });
+    }
+
+    updates.documents = documents;
+  }
+
   if (Object.keys(updates).length === 0) {
     return jsonError("No valid updates provided");
   }
 
-  if (updates.total_shares !== undefined || updates.shares_available !== undefined) {
+  if (
+    updates.total_shares !== undefined ||
+    updates.shares_available !== undefined ||
+    updates.fraction_listed !== undefined
+  ) {
     const { data: currentProperty, error: propertyError } = await supabase
       .from("properties")
-      .select("total_shares, shares_available")
+      .select("total_shares, shares_available, fraction_listed")
       .eq("id", id)
       .single();
 
@@ -136,11 +185,40 @@ export async function PATCH(
 
     const effectiveTotalShares =
       (updates.total_shares as number | undefined) ?? currentProperty.total_shares;
+    const effectiveFractionListed =
+      (updates.fraction_listed as number | undefined) ?? currentProperty.fraction_listed ?? 100;
     const effectiveSharesAvailable =
       (updates.shares_available as number | undefined) ?? currentProperty.shares_available;
+    const effectiveListedShares = Math.floor((effectiveTotalShares * effectiveFractionListed) / 100);
 
-    if (effectiveSharesAvailable > effectiveTotalShares) {
-      return jsonError("shares_available cannot exceed total_shares");
+    const { data: holdingRows, error: holdingsError } = await supabase
+      .from("holdings")
+      .select("shares_owned")
+      .eq("property_id", id);
+
+    if (holdingsError) {
+      return NextResponse.json({ error: holdingsError.message }, { status: 500 });
+    }
+
+    const ownedShares = (holdingRows ?? []).reduce(
+      (sum, row) => sum + Number(row.shares_owned ?? 0),
+      0
+    );
+
+    if (effectiveListedShares < 1) {
+      return jsonError("fraction_listed is too low for total_shares");
+    }
+
+    if (effectiveListedShares < ownedShares) {
+      return jsonError("listed shares cannot be lower than shares already owned by investors");
+    }
+
+    if (effectiveSharesAvailable > effectiveListedShares) {
+      return jsonError("shares_available cannot exceed listed shares");
+    }
+
+    if (effectiveSharesAvailable + ownedShares > effectiveListedShares) {
+      return jsonError("shares_available is inconsistent with investor-owned shares");
     }
   }
 

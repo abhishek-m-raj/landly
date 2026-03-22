@@ -787,6 +787,7 @@ Client-side code calls `getAuthHeaders()` from `lib/supabase.ts` to attach the B
 | Method | Route | Purpose |
 |------|-------|---------|
 | GET | `/api/properties` | returns all live properties |
+| GET | `/api/properties/mine` | returns the authenticated owner's listed properties and statuses |
 | GET | `/api/properties/[id]` | returns a single property |
 | GET | `/api/properties/[id]/market` | returns synthetic market chart + order book data |
 | POST | `/api/properties/list` | creates a pending property listing |
@@ -795,6 +796,7 @@ Client-side code calls `getAuthHeaders()` from `lib/supabase.ts` to attach the B
 | GET | `/api/wallet` | returns the authenticated user's wallet balance |
 | POST | `/api/wallet` | adds a specified amount to the authenticated user's wallet and returns the new balance |
 | GET | `/api/auth/callback` | exchanges OAuth code for session |
+| GET | `/api/stats` | returns live platform counts for public marketing stats |
 
 ### Admin routes
 
@@ -817,6 +819,9 @@ Client-side code calls `getAuthHeaders()` from `lib/supabase.ts` to attach the B
 - `sell-shares` computes average cost basis and deletes holding rows when shares reach zero
 - `wallet` now derives the acting user from the Bearer-authenticated Supabase session, rejects mismatched `userId` values, and returns the updated `wallet_balance` from the write itself
 - `buy-shares` and `sell-shares` now execute through transactional Postgres functions (`buy_property_shares`, `sell_property_shares`) so wallet/property/holding/transaction writes are atomic
+- properties now support retained ownership via `fraction_listed`, so owners can fractionalize only part of an asset while retaining the remainder
+- properties now support nullable `estimated_yield` and JSON `documents` metadata for richer investment and trust signals
+- transactions now store an explicit `type` of `buy` or `sell` instead of relying on naming conventions
 - `market` data is synthetic but deterministic for a given property and transaction history
 - market order book is simulated, not a real matching engine
 - Wallet, trade, and property-listing routes now derive the acting user from the forwarded Supabase JWT instead of trusting client-supplied user IDs

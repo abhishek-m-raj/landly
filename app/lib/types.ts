@@ -1,3 +1,8 @@
+export interface PropertyDocument {
+  name: string;
+  verified: boolean;
+}
+
 export interface Property {
   id: string;
   owner_id: string;
@@ -8,11 +13,20 @@ export interface Property {
   total_value: number;
   total_shares: number;
   shares_available: number;
+  fraction_listed: number;
+  estimated_yield: number | null;
   share_price: number;
   image_url: string;
+  documents: PropertyDocument[];
   status: "pending" | "verified" | "live" | "rejected" | "sold";
+  listed_shares?: number;
+  shares_sold?: number;
+  percent_funded?: number;
+  owner_retained_percent?: number;
   created_at: string;
 }
+
+export type TransactionType = "buy" | "sell";
 
 export interface Transaction {
   id: string;
@@ -22,6 +36,7 @@ export interface Transaction {
   shares: number;
   price_per_share: number;
   total_amount: number;
+  type: TransactionType;
   created_at: string;
 }
 
@@ -87,7 +102,11 @@ export function formatINR(amount: number): string {
 }
 
 export function percentSold(property: Property): number {
+  const fractionListed = property.fraction_listed ?? 100;
+  const listedShares = Math.floor((property.total_shares * fractionListed) / 100);
+  const sharesSold = Math.max(0, listedShares - property.shares_available);
+
   return Math.round(
-    ((property.total_shares - property.shares_available) / property.total_shares) * 100
+    (sharesSold / property.total_shares) * 100
   );
 }
