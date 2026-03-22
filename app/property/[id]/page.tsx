@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { use, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { notFound } from "next/navigation";
@@ -7,7 +8,8 @@ import Navbar from "@/app/components/Navbar";
 import PropertyTradingTerminal from "@/app/components/PropertyTradingTerminal";
 import TransactionFeed from "@/app/components/TransactionFeed";
 import { type Property, formatINR, percentSold } from "@/app/lib/types";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/app/components/AuthProvider";
+import { getAuthHeaders } from "@/lib/supabase";
 
 const TYPE_COLORS: Record<string, string> = {
   agricultural: "bg-emerald-600/80",
@@ -33,27 +35,27 @@ export default function PropertyDetailPage({
   const [property, setProperty] = useState<Property | null>(null);
   const [walletBalance, setWalletBalance] = useState(0);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
     async function load() {
-      const [propRes, authRes] = await Promise.all([
-        fetch(`/api/properties/${id}`),
-        supabase.auth.getUser(),
-      ]);
+      const propRes = await fetch(`/api/properties/${id}`);
       const propData = await propRes.json();
       if (propRes.ok && propData && !propData.error) {
         setProperty(propData);
       }
-      const userId = authRes.data.user?.id;
-      if (userId) {
-        const walletRes = await fetch(`/api/wallet?userId=${userId}`);
+      if (user) {
+        const authHeaders = await getAuthHeaders();
+        const walletRes = await fetch(`/api/wallet`, {
+          headers: authHeaders,
+        });
         const walletData = await walletRes.json();
         if (walletRes.ok) setWalletBalance(walletData.wallet_balance ?? 0);
       }
       setLoading(false);
     }
     load();
-  }, [id]);
+  }, [id, user]);
 
   if (loading) {
     return (
@@ -76,15 +78,25 @@ export default function PropertyDetailPage({
 
       {/* hero image area */}
       <div className="relative h-64 w-full overflow-hidden md:h-80">
-        <div className="absolute inset-0 bg-gradient-to-br from-landly-navy-deep via-landly-navy to-landly-navy-deep">
-          <div
-            className="absolute inset-0 opacity-20"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 40% 50%, rgba(245,158,11,0.2) 0%, transparent 60%)",
-            }}
+        {property.image_url ? (
+          <Image
+            src={property.image_url}
+            alt={property.title}
+            fill
+            sizes="100vw"
+            className="absolute inset-0 h-full w-full object-cover"
           />
-        </div>
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-landly-navy-deep via-landly-navy to-landly-navy-deep">
+            <div
+              className="absolute inset-0 opacity-20"
+              style={{
+                backgroundImage:
+                  "radial-gradient(circle at 40% 50%, rgba(245,158,11,0.2) 0%, transparent 60%)",
+              }}
+            />
+          </div>
+        )}
         {/* overlay info */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-landly-navy/90 to-transparent px-6 pb-6 pt-16 md:px-12">
           <span

@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { requireAdmin } from '@/app/api/admin/_shared';
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireAdmin(request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
+  const { supabase } = authResult;
   const { id } = await params;
 
   const { error } = await supabase

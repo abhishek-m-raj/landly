@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 
 export default function TransactionFeed({ propertyId }: { propertyId: string }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [nowTimestamp, setNowTimestamp] = useState(() => Date.now());
 
   useEffect(() => {
     /* Load recent transactions for this property */
@@ -41,8 +42,17 @@ export default function TransactionFeed({ propertyId }: { propertyId: string }) 
     return () => { supabase.removeChannel(channel); };
   }, [propertyId]);
 
+  useEffect(() => {
+    const updateClock = () => setNowTimestamp(Date.now());
+    const interval = window.setInterval(updateClock, 60000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, []);
+
   function timeAgo(iso: string) {
-    const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    const diff = Math.floor((nowTimestamp - new Date(iso).getTime()) / 1000);
     if (diff < 60) return `${diff}s ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     return `${Math.floor(diff / 3600)}h ago`;

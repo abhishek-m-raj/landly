@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { requireAuthenticatedUser } from '@/app/api/admin/_shared';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { ownerId, title, location, type, description, totalValue, totalShares, sharePrice, imageUrl } = body;
+    const authResult = await requireAuthenticatedUser(request);
+    if (authResult instanceof NextResponse) {
+      return authResult;
+    }
 
-    if (!ownerId || !title || !location || !type || !totalValue || !totalShares || !sharePrice) {
+    const { supabase, user } = authResult;
+    const body = await request.json();
+    const { title, location, type, description, totalValue, totalShares, sharePrice, imageUrl } = body;
+
+    if (!title || !location || !type || !totalValue || !totalShares || !sharePrice) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -16,7 +22,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabase
       .from('properties')
       .insert({
-        owner_id: ownerId,
+        owner_id: user.id,
         title,
         location,
         type,

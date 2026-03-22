@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { requireAdmin } from "@/app/api/admin/_shared";
 
 interface PropertyStatusCounts {
   pending: number;
@@ -15,7 +15,14 @@ interface UserRoleCounts {
   admin: number;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const authResult = await requireAdmin(request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
+  const { supabase } = authResult;
+
   const [
     propertiesResult,
     usersResult,

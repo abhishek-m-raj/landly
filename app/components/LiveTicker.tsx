@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Transaction } from "@/app/lib/types";
 import { supabase } from "@/lib/supabase";
@@ -8,6 +8,28 @@ import { supabase } from "@/lib/supabase";
 export default function LiveTicker() {
   const [current, setCurrent] = useState<Transaction | null>(null);
   const [propNames, setPropNames] = useState<Record<string, string>>({});
+  const requestedPropertyIds = useRef(new Set<string>());
+
+  const loadPropName = useCallback(async (propertyId: string) => {
+    if (requestedPropertyIds.current.has(propertyId)) {
+      return;
+    }
+
+    requestedPropertyIds.current.add(propertyId);
+
+    const { data } = await supabase
+      .from("properties")
+      .select("title")
+      .eq("id", propertyId)
+      .single();
+
+    if (data?.title) {
+      setPropNames((prev) => ({ ...prev, [propertyId]: data.title }));
+      return;
+    }
+
+    requestedPropertyIds.current.delete(propertyId);
+  }, []);
 
   useEffect(() => {
     /* Load recent transaction + property names */
@@ -39,19 +61,7 @@ export default function LiveTicker() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
-
-  async function loadPropName(propertyId: string) {
-    if (propNames[propertyId]) return;
-    const { data } = await supabase
-      .from("properties")
-      .select("title")
-      .eq("id", propertyId)
-      .single();
-    if (data?.title) {
-      setPropNames((prev) => ({ ...prev, [propertyId]: data.title }));
-    }
-  }
+  }, [loadPropName]);
 
   if (!current) return null;
 

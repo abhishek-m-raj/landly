@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createAuthClient } from "@/lib/supabase";
 
 export const PROPERTY_TYPES = ["agricultural", "residential", "commercial"] as const;
 export const PROPERTY_STATUSES = ["pending", "verified", "live", "rejected", "sold"] as const;
@@ -43,4 +44,42 @@ export function parseNumeric(value: unknown): number | null {
 
 export function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
+}
+
+export async function requireAuthenticatedUser(request: Request) {
+  const supabase = createAuthClient(request);
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    return jsonError(error?.message || "Unauthorized", 401);
+  }
+
+  return { supabase, user };
+}
+
+export async function requireAdmin(request: Request) {
+  const authResult = await requireAuthenticatedUser(request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
+  const { supabase, user } = authResult;
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (error || !profile) {
+    return jsonError(error?.message || "User profile not found", 404);
+  }
+
+  if (profile.role !== "admin") {
+    return jsonError("Forbidden", 403);
+  }
+
+  return { supabase, user };
 }

@@ -1,10 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/app/components/AuthProvider";
+import { getAuthHeaders } from "@/lib/supabase";
+import { formatINR } from "@/app/lib/types";
 
 interface NavbarProps {
   transparent?: boolean;
@@ -14,7 +17,16 @@ export default function Navbar({ transparent = false }: NavbarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [addFundsOpen, setAddFundsOpen] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [walletLoaded, setWalletLoaded] = useState(false);
+  const [fundAmount, setFundAmount] = useState("");
+  const [fundLoading, setFundLoading] = useState(false);
+  const [fundSuccess, setFundSuccess] = useState(false);
+  const [fundError, setFundError] = useState("");
   const avatarRef = useRef<HTMLDivElement>(null);
+  const addFundsRef = useRef<HTMLDivElement>(null);
   const { user, loading, signOut } = useAuth();
 
   // close avatar dropdown on outside click
@@ -23,10 +35,74 @@ export default function Navbar({ transparent = false }: NavbarProps) {
       if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
         setAvatarOpen(false);
       }
+      if (addFundsRef.current && !addFundsRef.current.contains(e.target as Node)) {
+        setAddFundsOpen(false);
+        setFundSuccess(false);
+      }
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  // fetch wallet balance when user is available
+  const fetchBalance = useCallback(async () => {
+    setWalletLoading(true);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch(`/api/wallet`, {
+        headers: authHeaders,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setWalletBalance(data.wallet_balance ?? 0);
+        setWalletLoaded(true);
+      }
+    } finally {
+      setWalletLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user) fetchBalance();
+  }, [user, fetchBalance]);
+
+  useEffect(() => {
+    if (user && avatarOpen) {
+      fetchBalance();
+    }
+  }, [user, avatarOpen, fetchBalance]);
+
+  async function handleAddFunds() {
+    if (!user || fundLoading) return;
+    const parsed = parseInt(fundAmount, 10);
+    if (!parsed || parsed <= 0) return;
+    setFundLoading(true);
+    setFundError("");
+    const authHeaders = await getAuthHeaders();
+    try {
+      const res = await fetch("/api/wallet", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify({ amount: parsed }),
+      });
+      const data = await res.json();
+      if (res.ok && data.newBalance != null) {
+        setWalletBalance(data.newBalance);
+        setWalletLoaded(true);
+        setFundSuccess(true);
+        setFundAmount("");
+        setTimeout(() => setFundSuccess(false), 2500);
+      } else {
+        setFundError(data.error || "Failed to add funds");
+      }
+    } catch {
+      setFundError("Network error. Please try again.");
+    }
+    setFundLoading(false);
+  }
 
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
 
@@ -84,11 +160,14 @@ export default function Navbar({ transparent = false }: NavbarProps) {
                 aria-label="User menu"
               >
                 {avatarUrl ? (
-                  <img
+                  <Image
                     src={avatarUrl}
                     alt="Avatar"
+                    width={36}
+                    height={36}
                     className="h-full w-full object-cover"
                     referrerPolicy="no-referrer"
+                    unoptimized
                   />
                 ) : (
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-landly-offwhite">
@@ -105,14 +184,85 @@ export default function Navbar({ transparent = false }: NavbarProps) {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-48 overflow-hidden rounded-(--radius-land) border border-landly-slate/15 bg-landly-navy-deep shadow-xl"
+                    className="absolute right-0 mt-2 w-56 overflow-hidden rounded-(--radius-land) border border-landly-slate/15 bg-landly-navy-deep shadow-xl"
                   >
+                    {/* balance pill */}
                     <div className="border-b border-landly-slate/10 px-4 py-3">
                       <p className="truncate text-sm font-medium text-landly-offwhite">
                         {user.user_metadata?.full_name || user.email}
                       </p>
                       <p className="truncate text-xs text-landly-slate">{user.email}</p>
+                      <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-landly-gold/10 px-3 py-1 font-mono text-xs font-semibold text-landly-gold">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" /><path d="M1 10h22" /></svg>
+                        {walletLoading && !walletLoaded ? "Loading..." : formatINR(walletBalance)}
+                      </div>
                     </div>
+
+                    {/* add funds */}
+                    <div ref={addFundsRef} className="relative">
+                      <button
+                        onClick={() => {
+                          setAddFundsOpen(!addFundsOpen);
+                          setFundSuccess(false);
+                          setFundError("");
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-landly-gold/80 transition-colors hover:bg-landly-slate/10 hover:text-landly-gold"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" /></svg>
+                        Add Funds
+                      </button>
+
+                      <AnimatePresence>
+                        {addFundsOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.12 }}
+                            className="border-t border-landly-slate/10 bg-landly-navy-deep px-4 py-3"
+                          >
+                            {fundSuccess ? (
+                              <div className="flex items-center gap-2 text-sm text-landly-green">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                                <div>
+                                  <p className="font-semibold">Funds added!</p>
+                                  <p className="mt-0.5 font-mono text-xs text-landly-slate">Balance: {formatINR(walletBalance ?? 0)}</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="relative flex-1">
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-landly-slate">₹</span>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      step="1"
+                                      value={fundAmount}
+                                      onChange={(e) => setFundAmount(e.target.value)}
+                                      onKeyDown={(e) => { if (e.key === "Enter") handleAddFunds(); }}
+                                      placeholder="5000"
+                                      className="w-full rounded-lg bg-landly-navy border border-landly-slate/20 py-1.5 pl-7 pr-2 font-mono text-sm text-landly-offwhite placeholder:text-landly-slate/40 focus:border-landly-gold/50 focus:outline-none"
+                                    />
+                                  </div>
+                                  <button
+                                    onClick={handleAddFunds}
+                                    disabled={fundLoading || !fundAmount}
+                                    className="rounded-lg bg-landly-green px-3 py-1.5 text-xs font-semibold text-white transition-all hover:brightness-110 disabled:opacity-40"
+                                  >
+                                    {fundLoading ? "..." : "Add"}
+                                  </button>
+                                </div>
+                                {fundError && (
+                                  <p className="text-xs text-landly-red">{fundError}</p>
+                                )}
+                              </div>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
                     <Link
                       href="/dashboard"
                       onClick={() => setAvatarOpen(false)}
@@ -201,11 +351,14 @@ export default function Navbar({ transparent = false }: NavbarProps) {
                 <>
                   <div className="flex items-center gap-3 pb-3">
                     {avatarUrl ? (
-                      <img
+                      <Image
                         src={avatarUrl}
                         alt="Avatar"
+                        width={36}
+                        height={36}
                         className="h-9 w-9 rounded-full object-cover"
                         referrerPolicy="no-referrer"
+                        unoptimized
                       />
                     ) : (
                       <div className="flex h-9 w-9 items-center justify-center rounded-full bg-landly-slate/20">

@@ -1,8 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
-import { isPropertyStatus, parsePositiveInteger } from "@/app/api/admin/_shared";
+import { isPropertyStatus, parsePositiveInteger, requireAdmin } from "@/app/api/admin/_shared";
 
 export async function GET(request: NextRequest) {
+  const authResult = await requireAdmin(request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
+  const { supabase } = authResult;
   const searchParams = request.nextUrl.searchParams;
   const status = searchParams.get("status");
   const search = searchParams.get("search")?.trim() ?? "";

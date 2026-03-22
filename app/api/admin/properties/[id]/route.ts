@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import {
   isPropertyStatus,
   isPropertyType,
   jsonError,
   parseNumeric,
+  requireAdmin,
 } from "@/app/api/admin/_shared";
 
 interface PropertyPatchPayload {
@@ -24,6 +24,12 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireAdmin(request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
+  const { supabase } = authResult;
   const { id } = await params;
 
   let body: PropertyPatchPayload;
@@ -153,9 +159,15 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireAdmin(request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
+  const { supabase } = authResult;
   const { id } = await params;
 
   const [holdingCheck, txCheck] = await Promise.all([

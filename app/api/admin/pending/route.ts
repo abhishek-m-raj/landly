@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { requireAdmin } from '@/app/api/admin/_shared';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const authResult = await requireAdmin(request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
+  const { supabase } = authResult;
+
   const { data, error } = await supabase
     .from('properties')
     .select('*')

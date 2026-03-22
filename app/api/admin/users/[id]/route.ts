@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
-import { isUserRole, jsonError, parseNumeric } from "@/app/api/admin/_shared";
+import { isUserRole, jsonError, parseNumeric, requireAdmin } from "@/app/api/admin/_shared";
 
 interface UserPatchPayload {
   full_name?: string;
@@ -13,6 +12,12 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireAdmin(request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
+  const { supabase } = authResult;
   const { id } = await params;
 
   let body: UserPatchPayload;

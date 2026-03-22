@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "@/app/components/Navbar";
-import { supabase } from "@/lib/supabase";
+import { getAuthHeaders } from "@/lib/supabase";
+import { useAuth } from "@/app/components/AuthProvider";
 
 type PropertyType = "agricultural" | "residential" | "commercial";
 
@@ -36,7 +37,6 @@ export default function ListPropertyPage() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [userId, setUserId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>({
     title: "",
     location: "",
@@ -49,12 +49,7 @@ export default function ListPropertyPage() {
 
   const update = (key: keyof FormData, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setUserId(user.id);
-    });
-  }, []);
+  const { user } = useAuth();
 
   const canNext =
     step === 0
@@ -64,15 +59,15 @@ export default function ListPropertyPage() {
         : true;
 
   const handleSubmit = async () => {
-    if (!userId || submitting) return;
+    if (!user || submitting) return;
     setSubmitting(true);
     setSubmitError("");
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/properties/list", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
-          ownerId: userId,
           title: form.title,
           location: form.location,
           type: form.type,

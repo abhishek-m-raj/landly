@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { type Property, formatINR } from "@/app/lib/types";
-import { supabase } from "@/lib/supabase";
+import { getAuthHeaders } from "@/lib/supabase";
+import { useAuth } from "@/app/components/AuthProvider";
 
 export default function SharePurchaseWidget({
   property,
@@ -18,17 +19,12 @@ export default function SharePurchaseWidget({
   const [error, setError] = useState("");
   const [walletBalance, setWalletBalance] = useState(initialBalance);
   const [sharesAvailable, setSharesAvailable] = useState(property.shares_available);
-  const [userId, setUserId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
 
   useEffect(() => {
     setWalletBalance(initialBalance);
   }, [initialBalance]);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setUserId(user.id);
-    });
-  }, []);
 
   const totalCost = shares * property.share_price;
   const ownershipPct = ((shares / property.total_shares) * 100).toFixed(2);
@@ -40,14 +36,13 @@ export default function SharePurchaseWidget({
     setBuying(true);
     setError("");
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/buy-shares", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
           propertyId: property.id,
-          userId,
           shares,
-          pricePerShare: property.share_price,
         }),
       });
       const data = await res.json();

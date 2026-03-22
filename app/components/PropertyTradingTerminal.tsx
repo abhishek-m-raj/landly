@@ -8,7 +8,7 @@ import {
   type PropertyMarketData,
   formatINR,
 } from "@/app/lib/types";
-import { supabase } from "@/lib/supabase";
+import { supabase, getAuthHeaders } from "@/lib/supabase";
 import { useAuth } from "@/app/components/AuthProvider";
 
 function buildPath(
@@ -68,11 +68,11 @@ export default function PropertyTradingTerminal({
   const [tradeError, setTradeError] = useState("");
   const [tradeSuccess, setTradeSuccess] = useState(false);
 
-  const [userId, setUserId] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState(initialWalletBalance);
   const [userShares, setUserShares] = useState(0);
 
   const { user: authUser } = useAuth();
+  const userId = authUser?.id ?? null;
 
   useEffect(() => {
     let mounted = true;
@@ -116,21 +116,21 @@ export default function PropertyTradingTerminal({
   }, [initialWalletBalance]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        setUserId(user.id);
-        supabase
-          .from("holdings")
-          .select("shares_owned")
-          .eq("user_id", user.id)
-          .eq("property_id", propertyId)
-          .maybeSingle()
-          .then(({ data }) => {
-            if (data) setUserShares(data.shares_owned);
-          });
-      }
-    });
-  }, [propertyId]);
+    if (!userId) {
+      setUserShares(0);
+      return;
+    }
+
+    supabase
+      .from("holdings")
+      .select("shares_owned")
+      .eq("user_id", userId)
+      .eq("property_id", propertyId)
+      .maybeSingle()
+      .then(({ data }) => {
+        setUserShares(data?.shares_owned ?? 0);
+      });
+  }, [propertyId, userId]);
 
   const history = useMemo(() => market?.history ?? [], [market]);
   const currentPrice = market?.currentPrice ?? fallbackPrice;
@@ -172,14 +172,14 @@ export default function PropertyTradingTerminal({
     const endpoint = tab === "buy" ? "/api/buy-shares" : "/api/sell-shares";
     const body = {
       propertyId,
-      userId,
       shares,
     };
 
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify(body),
       });
       const data = await res.json();
@@ -192,6 +192,7 @@ export default function PropertyTradingTerminal({
           if (property) {
             property.shares_available = data.sharesRemaining;
           }
+          setUserShares((prev) => prev + shares);
         }
         setShares(1);
         setPriceLimit("");

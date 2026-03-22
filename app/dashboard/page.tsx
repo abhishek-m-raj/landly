@@ -21,12 +21,9 @@ const fadeUp = (delay: number) => ({
 export default function DashboardPage() {
   const router = useRouter();
   const { user: authUser, loading: authLoading } = useAuth();
-  const [walletBalance, setWalletBalance] = useState(0);
   const [holdings, setHoldings] = useState<(Holding & { property?: Property })[]>([]);
   const [transactions, setTransactions] = useState<(Transaction & { property?: Property })[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [addingFunds, setAddingFunds] = useState(false);
 
   // Redirect logged-out users to login
   useEffect(() => {
@@ -39,10 +36,8 @@ export default function DashboardPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
-      setUserId(user.id);
 
-      const [walletRes, holdingsRes, txRes] = await Promise.all([
-        fetch(`/api/wallet?userId=${user.id}`),
+      const [holdingsRes, txRes] = await Promise.all([
         supabase
           .from("holdings")
           .select("*, property:properties(*)")
@@ -55,27 +50,12 @@ export default function DashboardPage() {
           .limit(10),
       ]);
 
-      const walletData = await walletRes.json();
-      if (walletRes.ok) setWalletBalance(walletData.wallet_balance ?? 0);
       if (holdingsRes.data) setHoldings(holdingsRes.data);
       if (txRes.data) setTransactions(txRes.data);
       setLoading(false);
     }
     load();
   }, []);
-
-  async function handleAddFunds() {
-    if (!userId || addingFunds) return;
-    setAddingFunds(true);
-    const res = await fetch("/api/wallet", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId }),
-    });
-    const data = await res.json();
-    if (res.ok && data.newBalance != null) setWalletBalance(data.newBalance);
-    setAddingFunds(false);
-  }
 
   const totalInvested = holdings.reduce((sum, h) => sum + h.total_invested, 0);
   const totalCurrentValue = holdings.reduce((sum, h) => {
@@ -111,25 +91,8 @@ export default function DashboardPage() {
             <h1 className="font-sans text-3xl font-bold text-landly-offwhite">Dashboard</h1>
           </motion.div>
 
-          {/* wallet */}
-          <motion.div variants={fadeUp(0.05)} className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <span className="text-xs font-medium uppercase tracking-wider text-landly-slate">Wallet Balance</span>
-              <p className="mt-1 font-mono text-4xl font-bold text-landly-gold">
-                {formatINR(walletBalance)}
-              </p>
-            </div>
-            <button
-              onClick={handleAddFunds}
-              disabled={addingFunds}
-              className="rounded-[var(--radius-land)] border border-landly-gold/40 px-6 py-2.5 text-sm font-semibold text-landly-gold transition-all hover:bg-landly-gold/10 disabled:opacity-50"
-            >
-              {addingFunds ? "Adding…" : "Add ₹10,000"}
-            </button>
-          </motion.div>
-
           {/* portfolio summary */}
-          <motion.div variants={fadeUp(0.1)} className="mt-10 grid gap-4 sm:grid-cols-4">
+          <motion.div variants={fadeUp(0.05)} className="mt-8 grid gap-4 sm:grid-cols-4">
             {[
               { label: "Total Invested", value: formatINR(totalInvested) },
               { label: "Current Value", value: formatINR(totalCurrentValue) },
@@ -155,7 +118,7 @@ export default function DashboardPage() {
           </motion.div>
 
           {/* holdings */}
-          <motion.div variants={fadeUp(0.15)} className="mt-12">
+          <motion.div variants={fadeUp(0.1)} className="mt-10">
             <h2 className="font-sans text-xl font-semibold text-landly-offwhite">Your Holdings</h2>
 
             {holdings.length === 0 ? (
@@ -224,7 +187,7 @@ export default function DashboardPage() {
           </motion.div>
 
           {/* recent transactions */}
-          <motion.div variants={fadeUp(0.2)} className="mt-12">
+          <motion.div variants={fadeUp(0.15)} className="mt-12">
             <h2 className="font-sans text-xl font-semibold text-landly-offwhite">Recent Transactions</h2>
             <div className="mt-4 overflow-x-auto">
               <table className="w-full text-left text-sm">

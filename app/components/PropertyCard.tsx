@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { motion } from "framer-motion";
@@ -38,10 +39,20 @@ export default function PropertyCard({
         <div className="overflow-hidden rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/60 transition-all duration-300 group-hover:-translate-y-1 group-hover:border-landly-slate/25 group-hover:shadow-lg group-hover:shadow-black/20">
           {/* image area */}
           <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-landly-navy to-landly-navy-deep">
-            {/* placeholder gradient pattern */}
-            <div className="absolute inset-0 opacity-30" style={{
-              backgroundImage: "radial-gradient(circle at 30% 40%, rgba(245,158,11,0.15) 0%, transparent 60%), radial-gradient(circle at 70% 60%, rgba(5,150,105,0.1) 0%, transparent 50%)",
-            }} />
+            {property.image_url ? (
+              <Image
+                src={property.image_url}
+                alt={property.title}
+                fill
+                sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            ) : (
+              /* placeholder gradient pattern */
+              <div className="absolute inset-0 opacity-30" style={{
+                backgroundImage: "radial-gradient(circle at 30% 40%, rgba(245,158,11,0.15) 0%, transparent 60%), radial-gradient(circle at 70% 60%, rgba(5,150,105,0.1) 0%, transparent 50%)",
+              }} />
+            )}
             {/* type badge */}
             <span className={`absolute top-3 left-3 rounded-full px-3 py-1 text-xs font-semibold text-white ${TYPE_COLORS[property.type] || "bg-landly-slate"}`}>
               {property.type.charAt(0).toUpperCase() + property.type.slice(1)}

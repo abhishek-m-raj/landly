@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Navbar from "@/app/components/Navbar";
 import { type Property, formatINR } from "@/app/lib/types";
+import { getAuthHeaders } from "@/lib/supabase";
 
 type PropertyStatus = Property["status"];
 type UserRole = "investor" | "owner" | "admin";
@@ -127,9 +128,23 @@ export default function AdminPage() {
     setError("");
   }
 
+  async function fetchAdminJson(input: string, init?: RequestInit) {
+    const authHeaders = await getAuthHeaders();
+    const headers = new Headers(init?.headers);
+
+    for (const [key, value] of Object.entries(authHeaders)) {
+      headers.set(key, value);
+    }
+
+    return fetch(input, {
+      ...init,
+      headers,
+    });
+  }
+
   async function loadOverview() {
     setOverviewLoading(true);
-    const res = await fetch("/api/admin/overview");
+    const res = await fetchAdminJson("/api/admin/overview");
     const data = await res.json();
     if (!res.ok) {
       showError(data.error || "Failed to load overview");
@@ -147,7 +162,7 @@ export default function AdminPage() {
       params.set("search", search.trim());
     }
 
-    const res = await fetch(`/api/admin/properties?${params.toString()}`);
+    const res = await fetchAdminJson(`/api/admin/properties?${params.toString()}`);
     const data = await res.json();
 
     if (!res.ok) {
@@ -177,7 +192,7 @@ export default function AdminPage() {
       params.set("search", search.trim());
     }
 
-    const res = await fetch(`/api/admin/users?${params.toString()}`);
+    const res = await fetchAdminJson(`/api/admin/users?${params.toString()}`);
     const data = await res.json();
 
     if (!res.ok) {
@@ -192,7 +207,7 @@ export default function AdminPage() {
 
   async function loadTransactions() {
     setTransactionsLoading(true);
-    const res = await fetch("/api/admin/transactions?limit=300");
+    const res = await fetchAdminJson("/api/admin/transactions?limit=300");
     const data = await res.json();
 
     if (!res.ok) {
@@ -209,10 +224,10 @@ export default function AdminPage() {
   useEffect(() => {
     queueMicrotask(async () => {
       const [overviewRes, propertiesRes, usersRes, txRes] = await Promise.all([
-        fetch("/api/admin/overview"),
-        fetch("/api/admin/properties?status=all&limit=200"),
-        fetch("/api/admin/users?role=all&limit=300"),
-        fetch("/api/admin/transactions?limit=300"),
+        fetchAdminJson("/api/admin/overview"),
+        fetchAdminJson("/api/admin/properties?status=all&limit=200"),
+        fetchAdminJson("/api/admin/users?role=all&limit=300"),
+        fetchAdminJson("/api/admin/transactions?limit=300"),
       ]);
 
       const [overviewData, propertiesData, usersData, txData] = await Promise.all([
@@ -275,7 +290,7 @@ export default function AdminPage() {
 
   async function patchProperty(id: string, payload: Partial<PropertyDraft>) {
     setPropertyBusyId(id);
-    const res = await fetch(`/api/admin/properties/${id}`, {
+    const res = await fetchAdminJson(`/api/admin/properties/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -305,7 +320,7 @@ export default function AdminPage() {
     }
 
     setPropertyBusyId(id);
-    const res = await fetch(`/api/admin/properties/${id}`, { method: "DELETE" });
+    const res = await fetchAdminJson(`/api/admin/properties/${id}`, { method: "DELETE" });
     const data = await res.json();
 
     if (!res.ok) {
@@ -327,7 +342,7 @@ export default function AdminPage() {
 
   async function updateUser(userId: string, payload: { role?: UserRole; wallet_adjustment?: number }) {
     setUserBusyId(userId);
-    const res = await fetch(`/api/admin/users/${userId}`, {
+    const res = await fetchAdminJson(`/api/admin/users/${userId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
