@@ -13,17 +13,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: authError?.message || 'Unauthorized' }, { status: 401 });
   }
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('wallet_balance')
-    .eq('id', user.id)
-    .single();
+  const { data, error } = await supabase.rpc('ensure_current_profile');
 
-  if (error || !data) {
+  const profile = Array.isArray(data) ? data[0] : data;
+
+  if (error || !profile) {
     return NextResponse.json({ error: error?.message || 'User not found' }, { status: 404 });
   }
 
-  return NextResponse.json({ wallet_balance: data.wallet_balance });
+  return NextResponse.json({ wallet_balance: Number(profile.wallet_balance || 0) });
 }
 
 export async function POST(request: Request) {
@@ -49,30 +47,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Authenticated user does not match request body' }, { status: 403 });
     }
 
-    const { data: profile, error: fetchError } = await supabase
-      .from('profiles')
-      .select('wallet_balance')
-      .eq('id', user.id)
-      .single();
+    const { data, error } = await supabase.rpc('add_wallet_funds', {
+      add_amount: addAmount,
+    });
 
-    if (fetchError || !profile) {
-      return NextResponse.json({ error: fetchError?.message || 'User not found' }, { status: 404 });
+    const result = Array.isArray(data) ? data[0] : data;
+
+    if (error || !result) {
+      const status = error?.message === 'amount must be a positive number' ? 400 : 500;
+      return NextResponse.json({ error: error?.message || 'Failed to add funds' }, { status });
     }
 
-    const newBalance = Number(profile.wallet_balance || 0) + addAmount;
-
-    const { data: updatedProfile, error: updateError } = await supabase
-      .from('profiles')
-      .update({ wallet_balance: newBalance })
-      .eq('id', user.id)
-      .select('wallet_balance')
-      .single();
-
-    if (updateError || !updatedProfile) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, newBalance: Number(updatedProfile.wallet_balance || 0) });
+    return NextResponse.json({ success: true, newBalance: Number(result.newBalance || 0) });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json({ error: message }, { status: 500 });

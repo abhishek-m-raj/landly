@@ -19,6 +19,12 @@ export async function POST(request: Request) {
       );
     }
 
+    const { error: profileError } = await supabase.rpc('ensure_current_profile');
+
+    if (profileError) {
+      return NextResponse.json({ error: profileError.message }, { status: 500 });
+    }
+
     const { data, error } = await supabase
       .from('properties')
       .insert({

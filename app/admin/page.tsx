@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import Navbar from "@/app/components/Navbar";
+import { useAuth } from "@/app/components/AuthProvider";
 import { type Property, formatINR } from "@/app/lib/types";
 import { getAuthHeaders } from "@/lib/supabase";
+import { isAdminEmail } from "@/lib/admin";
 
 type PropertyStatus = Property["status"];
 type UserRole = "investor" | "owner" | "admin";
@@ -93,6 +96,8 @@ function statusTextColor(status: PropertyStatus) {
 }
 
 export default function AdminPage() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [tab, setTab] = useState<AdminTab>("overview");
 
   const [overview, setOverview] = useState<AdminOverview | null>(null);
@@ -117,6 +122,7 @@ export default function AdminPage() {
 
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const isAdmin = isAdminEmail(user?.email);
 
   function showError(message: string) {
     setError(message);
@@ -128,7 +134,7 @@ export default function AdminPage() {
     setError("");
   }
 
-  async function fetchAdminJson(input: string, init?: RequestInit) {
+  const fetchAdminJson = useCallback(async (input: string, init?: RequestInit) => {
     const authHeaders = await getAuthHeaders();
     const headers = new Headers(init?.headers);
 
@@ -140,7 +146,7 @@ export default function AdminPage() {
       ...init,
       headers,
     });
-  }
+  }, []);
 
   async function loadOverview() {
     setOverviewLoading(true);
@@ -222,6 +228,15 @@ export default function AdminPage() {
 
   // Initial admin bootstrap fetches all dashboard datasets once.
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    if (!user || !isAdmin) {
+      router.replace("/marketplace");
+      return;
+    }
+
     queueMicrotask(async () => {
       const [overviewRes, propertiesRes, usersRes, txRes] = await Promise.all([
         fetchAdminJson("/api/admin/overview"),
@@ -276,7 +291,18 @@ export default function AdminPage() {
       setUsersLoading(false);
       setTransactionsLoading(false);
     });
-  }, []);
+  }, [authLoading, fetchAdminJson, isAdmin, router, user]);
+
+  if (authLoading || !user || !isAdmin) {
+    return (
+      <div className="flex min-h-svh flex-col bg-landly-navy">
+        <Navbar />
+        <main className="mx-auto flex w-full max-w-6xl flex-1 items-center justify-center px-6 pt-24 pb-16 md:pt-28">
+          <p className="text-sm text-landly-slate">Checking admin access...</p>
+        </main>
+      </div>
+    );
+  }
 
   function updateDraft<T extends keyof PropertyDraft>(id: string, key: T, value: PropertyDraft[T]) {
     setPropertyDrafts((prev) => ({

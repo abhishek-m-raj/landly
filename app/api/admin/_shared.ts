@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAuthClient } from "@/lib/supabase";
+import { isAdminEmail } from "@/lib/admin";
 
 export const PROPERTY_TYPES = ["agricultural", "residential", "commercial"] as const;
 export const PROPERTY_STATUSES = ["pending", "verified", "live", "rejected", "sold"] as const;
@@ -67,17 +68,7 @@ export async function requireAdmin(request: Request) {
   }
 
   const { supabase, user } = authResult;
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (error || !profile) {
-    return jsonError(error?.message || "User profile not found", 404);
-  }
-
-  if (profile.role !== "admin") {
+  if (!isAdminEmail(user.email)) {
     return jsonError("Forbidden", 403);
   }
 

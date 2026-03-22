@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/app/components/AuthProvider";
 import { getAuthHeaders } from "@/lib/supabase";
 import { formatINR } from "@/app/lib/types";
+import { isAdminEmail } from "@/lib/admin";
 
 interface NavbarProps {
   transparent?: boolean;
@@ -105,11 +106,12 @@ export default function Navbar({ transparent = false }: NavbarProps) {
   }
 
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
+  const isAdmin = isAdminEmail(user?.email);
 
   const NAV_LINKS = [
     { href: "/marketplace", label: "Marketplace" },
     ...(user ? [{ href: "/dashboard", label: "Dashboard" }] : []),
-    { href: "/admin", label: "Admin" },
+    ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
   ];
 
   const bg = transparent
