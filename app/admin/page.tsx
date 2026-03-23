@@ -120,6 +120,10 @@ export default function AdminPage() {
   const [transactions, setTransactions] = useState<AdminTransaction[]>([]);
   const [transactionsLoading, setTransactionsLoading] = useState(true);
 
+  const [testTradeOpen, setTestTradeOpen] = useState<string | null>(null);
+  const [testTradeConfig, setTestTradeConfig] = useState<Record<string, { count: string; daysBack: string; minPrice: string; maxPrice: string }>>({});
+  const [testTradeBusy, setTestTradeBusy] = useState(false);
+
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const isAdmin = isAdminEmail(user?.email);
@@ -364,6 +368,30 @@ export default function AdminPage() {
     showInfo(`Deleted property: ${target.title}`);
     loadOverview();
     setPropertyBusyId(null);
+  }
+
+  async function generateTestTrades(propertyId: string) {
+    const config = testTradeConfig[propertyId] ?? {};
+    const count = Number(config.count || "20");
+    const daysBack = Number(config.daysBack || "30");
+    const payload: Record<string, unknown> = { propertyId, count, daysBack };
+    if (config.minPrice) payload.minPrice = Number(config.minPrice);
+    if (config.maxPrice) payload.maxPrice = Number(config.maxPrice);
+
+    setTestTradeBusy(true);
+    const res = await fetchAdminJson("/api/admin/test-trades", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    setTestTradeBusy(false);
+
+    if (!res.ok) {
+      showError(data.error || "Failed to generate test trades");
+      return;
+    }
+    showInfo(`Generated ${data.inserted} test trades for chart (price range: ${data.priceRange.min}–${data.priceRange.max})`);
   }
 
   async function updateUser(userId: string, payload: { role?: UserRole; wallet_adjustment?: number }) {
@@ -669,7 +697,68 @@ export default function AdminPage() {
                             >
                               Delete
                             </button>
+                            <button
+                              onClick={() => setTestTradeOpen(testTradeOpen === property.id ? null : property.id)}
+                              className="rounded-(--radius-land) border border-sky-400/30 px-4 py-2 text-sm font-semibold text-sky-400 hover:bg-sky-400/10"
+                            >
+                              {testTradeOpen === property.id ? "Hide" : "Test Trades"}
+                            </button>
                           </div>
+
+                          {testTradeOpen === property.id && (
+                            <div className="mt-3 rounded-(--radius-land) border border-sky-400/20 bg-landly-navy-deep/60 p-4">
+                              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-sky-400">Generate Test Chart Data</p>
+                              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                <div>
+                                  <label className="block text-[10px] uppercase tracking-wider text-landly-slate">Trade count</label>
+                                  <input
+                                    type="number"
+                                    placeholder="20"
+                                    value={testTradeConfig[property.id]?.count ?? ""}
+                                    onChange={(e) => setTestTradeConfig((prev) => ({ ...prev, [property.id]: { ...prev[property.id], count: e.target.value, daysBack: prev[property.id]?.daysBack ?? "", minPrice: prev[property.id]?.minPrice ?? "", maxPrice: prev[property.id]?.maxPrice ?? "" } }))}
+                                    className="mt-1 w-full rounded border border-landly-slate/20 bg-landly-navy-deep/60 px-3 py-2 text-sm text-landly-offwhite"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] uppercase tracking-wider text-landly-slate">Days back</label>
+                                  <input
+                                    type="number"
+                                    placeholder="30"
+                                    value={testTradeConfig[property.id]?.daysBack ?? ""}
+                                    onChange={(e) => setTestTradeConfig((prev) => ({ ...prev, [property.id]: { ...prev[property.id], daysBack: e.target.value, count: prev[property.id]?.count ?? "", minPrice: prev[property.id]?.minPrice ?? "", maxPrice: prev[property.id]?.maxPrice ?? "" } }))}
+                                    className="mt-1 w-full rounded border border-landly-slate/20 bg-landly-navy-deep/60 px-3 py-2 text-sm text-landly-offwhite"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] uppercase tracking-wider text-landly-slate">Min price (optional)</label>
+                                  <input
+                                    type="number"
+                                    placeholder="auto"
+                                    value={testTradeConfig[property.id]?.minPrice ?? ""}
+                                    onChange={(e) => setTestTradeConfig((prev) => ({ ...prev, [property.id]: { ...prev[property.id], minPrice: e.target.value, count: prev[property.id]?.count ?? "", daysBack: prev[property.id]?.daysBack ?? "", maxPrice: prev[property.id]?.maxPrice ?? "" } }))}
+                                    className="mt-1 w-full rounded border border-landly-slate/20 bg-landly-navy-deep/60 px-3 py-2 text-sm text-landly-offwhite"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] uppercase tracking-wider text-landly-slate">Max price (optional)</label>
+                                  <input
+                                    type="number"
+                                    placeholder="auto"
+                                    value={testTradeConfig[property.id]?.maxPrice ?? ""}
+                                    onChange={(e) => setTestTradeConfig((prev) => ({ ...prev, [property.id]: { ...prev[property.id], maxPrice: e.target.value, count: prev[property.id]?.count ?? "", daysBack: prev[property.id]?.daysBack ?? "", minPrice: prev[property.id]?.minPrice ?? "" } }))}
+                                    className="mt-1 w-full rounded border border-landly-slate/20 bg-landly-navy-deep/60 px-3 py-2 text-sm text-landly-offwhite"
+                                  />
+                                </div>
+                              </div>
+                              <button
+                                disabled={testTradeBusy}
+                                onClick={() => generateTestTrades(property.id)}
+                                className="mt-3 rounded-(--radius-land) bg-sky-400/15 px-4 py-2 text-sm font-semibold text-sky-400 hover:bg-sky-400/25 disabled:opacity-50"
+                              >
+                                {testTradeBusy ? "Generating…" : "Generate Trades"}
+                              </button>
+                            </div>
+                          )}
                         </article>
                       );
                     })}

@@ -16,6 +16,7 @@ export interface Property {
   fraction_listed: number;
   estimated_yield: number | null;
   share_price: number;
+  current_price: number | null;
   image_url: string;
   documents: PropertyDocument[];
   status: "pending" | "verified" | "live" | "rejected" | "sold";
@@ -65,15 +66,56 @@ export interface PricePoint {
   volume: number;
 }
 
+export interface OrderBookLevel {
+  id: string;
+  side: "bid" | "ask";
+  price: number;
+  quantity: number;
+}
+
+export interface PropertyOrderBook {
+  bids: OrderBookLevel[];
+  asks: OrderBookLevel[];
+  spread: number;
+  midPrice: number;
+  totalBidVolume: number;
+  totalAskVolume: number;
+  lastUpdated: string;
+}
+
+export type OrderSide = "buy" | "sell";
+export type OrderType = "market" | "limit";
+export type OrderStatus = "open" | "partial" | "filled" | "cancelled";
+
+export interface Order {
+  id: string;
+  user_id: string;
+  property_id: string;
+  side: OrderSide;
+  order_type: OrderType;
+  price: number | null;
+  quantity: number;
+  filled_quantity: number;
+  status: OrderStatus;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PropertyMarketData {
   propertyId: string;
   currency: "INR";
   currentPrice: number;
+  change24hAbs: number;
+  change24hPct: number;
+  hasRealData: boolean;
+  rangeHasData: boolean;
+  firstTradeAt: string | null;
   history: PricePoint[];
   transactionCount: number;
   latestActivityAt: string | null;
   sharesAvailable?: number;
   totalShares?: number;
+  orderbook: PropertyOrderBook;
 }
 
 export function formatINR(amount: number): string {

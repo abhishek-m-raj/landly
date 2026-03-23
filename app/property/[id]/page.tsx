@@ -5,7 +5,7 @@ import { use, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { notFound } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
-import PropertyTradingTerminal from "../../components/PropertyTradingTerminal";
+import PropertyTradingTerminal from "@/app/components/PropertyTradingTerminal";
 import TransactionFeed from "@/app/components/TransactionFeed";
 import { type Property, formatINR, getListedShares, getSharesSold, percentSold } from "@/app/lib/types";
 import { useAuth } from "@/app/components/AuthProvider";
