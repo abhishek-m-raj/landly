@@ -122,22 +122,6 @@ export default function PropertyCard({
               </div>
             </div>
 
-            {/* progress bar */}
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-landly-slate">
-                <span>{sold}% funded</span>
-                <span>{sharesSold} / {listedShares} investor shares</span>
-              </div>
-              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-landly-slate/20">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${sold}%` }}
-                  transition={{ duration: 1, delay: index * 0.08 + 0.3, ease: "easeOut" }}
-                  className="h-full rounded-full bg-landly-green"
-                />
-              </div>
-            </div>
-
             {/* CTA */}
             <div className="mt-5">
               <span className="block w-full rounded-[var(--radius-land)] bg-landly-green/10 py-2.5 text-center text-sm font-semibold text-landly-green transition-all group-hover:bg-landly-green group-hover:text-white">
