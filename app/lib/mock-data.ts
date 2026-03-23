@@ -13,6 +13,7 @@ export interface Property {
   total_value: number;
   total_shares: number;
   shares_available: number;
+  fraction_listed?: number;
   share_price: number;
   image_url: string;
   status: "pending" | "verified" | "live" | "rejected" | "sold";
@@ -226,8 +227,13 @@ export function formatINR(amount: number): string {
 
 /* ── helper: percent sold ────────────────────────── */
 export function percentSold(property: Property): number {
+  const listedShares = Math.floor((property.total_shares * (property.fraction_listed ?? 100)) / 100);
+  if (listedShares <= 0) {
+    return 0;
+  }
+
   return Math.round(
-    ((property.total_shares - property.shares_available) / property.total_shares) * 100
+    ((listedShares - property.shares_available) / listedShares) * 100
   );
 }
 

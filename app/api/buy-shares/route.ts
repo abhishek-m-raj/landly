@@ -23,22 +23,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'shares must be a positive integer' }, { status: 400 });
     }
 
-    const { data, error } = await supabase.rpc('place_order', {
-      p_property_id: propertyId,
-      p_side: 'buy',
-      p_order_type: 'market',
-      p_price: null,
-      p_quantity: shares,
+    const { data, error } = await supabase.rpc('buy_property_shares', {
+      target_property_id: propertyId,
+      requested_shares: shares,
     });
 
     if (error) {
-      const msg = error.message;
       const status =
-        msg === 'Property not found' ? 404 :
-        msg === 'Unauthorized' ? 401 :
-        msg.includes('wallet') || msg.includes('shares') || msg.includes('positive') || msg.includes('not available') ? 400 :
-        500;
-      return NextResponse.json({ error: msg }, { status });
+        error.message === 'Property not found'
+          ? 404
+          : error.message === 'Unauthorized'
+            ? 401
+            : error.message === 'Not enough shares available' ||
+                error.message === 'Insufficient wallet balance' ||
+                error.message === 'shares must be a positive integer' ||
+                error.message === 'Property is not available for trading'
+              ? 400
+              : 500;
+
+      return NextResponse.json({ error: error.message }, { status });
     }
 
     const result = Array.isArray(data) ? data[0] : data;
@@ -51,10 +54,7 @@ export async function POST(request: Request) {
       success: true,
       message: 'Shares purchased successfully',
       newWalletBalance: result.newWalletBalance,
-      sharesRemaining: result.remainingQuantity,
-      filledQuantity: result.filledQuantity,
-      averagePrice: result.averagePrice,
-      orderId: result.orderId,
+      sharesRemaining: result.sharesRemaining,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error';

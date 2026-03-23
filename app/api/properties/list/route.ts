@@ -19,6 +19,10 @@ interface ListPropertyBody {
   estimatedYield?: number | string | null;
 }
 
+function roundToTwo(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
 export async function POST(request: Request) {
   try {
     const authResult = await requireAuthenticatedUser(request);
@@ -34,13 +38,12 @@ export async function POST(request: Request) {
     const imageUrl = body.imageUrl?.trim() ?? '';
     const totalValue = parseNumeric(body.totalValue);
     const totalSharesValue = parseNumeric(body.totalShares);
-    const sharePrice = parseNumeric(body.sharePrice);
     const fractionPercentValue = body.fractionPercent === undefined
       ? 60
       : parseNumeric(body.fractionPercent);
     const estimatedYield = parseNumeric(body.estimatedYield);
 
-    if (!title || !location || !body.type || totalValue === null || totalSharesValue === null || sharePrice === null) {
+    if (!title || !location || !body.type || totalValue === null || totalSharesValue === null) {
       return jsonError('Missing required fields');
     }
 
@@ -52,8 +55,8 @@ export async function POST(request: Request) {
       return jsonError('totalShares must be a positive integer');
     }
 
-    if (totalValue <= 0 || sharePrice <= 0) {
-      return jsonError('totalValue and sharePrice must be positive numbers');
+    if (totalValue <= 0) {
+      return jsonError('totalValue must be a positive number');
     }
 
     if (
@@ -74,6 +77,11 @@ export async function POST(request: Request) {
       return jsonError('fractionPercent is too low for the chosen totalShares');
     }
 
+    const computedSharePrice = roundToTwo(totalValue / totalSharesValue);
+    if (computedSharePrice <= 0) {
+      return jsonError('Unable to compute a valid share price');
+    }
+
     const { error: profileError } = await supabase.rpc('ensure_current_profile');
 
     if (profileError) {
@@ -91,7 +99,7 @@ export async function POST(request: Request) {
         total_value: totalValue,
         total_shares: totalSharesValue,
         shares_available: sharesAvailable,
-        share_price: sharePrice,
+        share_price: computedSharePrice,
         image_url: imageUrl,
         fraction_listed: fractionPercentValue,
         estimated_yield: estimatedYield === null ? null : Math.round(estimatedYield * 100) / 100,

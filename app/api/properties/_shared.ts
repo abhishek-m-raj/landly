@@ -27,11 +27,13 @@ export function getSharesSold(property: PropertyMetricsShape): number {
 }
 
 export function getPercentFunded(property: PropertyMetricsShape): number {
-  if (property.total_shares <= 0) {
+  const listedShares = getListedShares(property);
+
+  if (listedShares <= 0) {
     return 0;
   }
 
-  return roundToTwo((getSharesSold(property) / property.total_shares) * 100);
+  return roundToTwo((getSharesSold(property) / listedShares) * 100);
 }
 
 export function withComputedPropertyFields<T extends PropertyMetricsShape>(property: T) {

@@ -3,11 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { type Property, formatINR, percentSold } from "@/app/lib/types";
+import { type Property, formatINR, getListedShares, getSharesSold, percentSold } from "@/app/lib/types";
 
 const TYPE_COLORS: Record<string, string> = {
-  agricultural: "bg-landly-green/80",
-  residential: "bg-landly-slate/80",
+  agricultural: "bg-emerald-600/80",
+  residential: "bg-sky-600/80",
   commercial: "bg-landly-gold/80",
 };
 
@@ -30,9 +30,11 @@ export default function PropertyCard({
   property: Property;
   index?: number;
 }) {
-  const sold = percentSold(property);
+  const sold = property.percent_funded ?? percentSold(property);
+  const listedShares = getListedShares(property);
+  const sharesSold = getSharesSold(property);
   const estimatedYield = property.estimated_yield ?? ESTIMATED_YIELDS[property.type];
-  const isVerified = ["verified", "live", "sold"].includes(property.status);
+  const isVerified = ["verified", "live", "sold"].includes(property.verification_status ?? property.status);
 
   return (
     <motion.div
@@ -83,6 +85,9 @@ export default function PropertyCard({
               <span className="inline-flex items-center rounded-full bg-landly-gold/10 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-landly-gold">
                 ~{estimatedYield.toFixed(1)}% est. yield
               </span>
+              <span className="inline-flex items-center rounded-full bg-landly-slate/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-landly-offwhite/85">
+                Owner retains {property.owner_retained_percent ?? Math.max(0, 100 - (property.fraction_listed ?? 100))}%
+              </span>
             </div>
 
             <p className="mt-3 text-sm leading-relaxed text-landly-slate">
@@ -112,7 +117,7 @@ export default function PropertyCard({
                   {property.shares_available}
                 </span>
                 <span className="block text-[10px] uppercase tracking-wider text-landly-slate">
-                  Available
+                  Investor Available
                 </span>
               </div>
             </div>
@@ -121,7 +126,7 @@ export default function PropertyCard({
             <div className="mt-4">
               <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-landly-slate">
                 <span>{sold}% funded</span>
-                <span>{property.total_shares - property.shares_available} / {property.total_shares} shares</span>
+                <span>{sharesSold} / {listedShares} investor shares</span>
               </div>
               <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-landly-slate/20">
                 <motion.div

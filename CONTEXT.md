@@ -6,13 +6,13 @@
 
 ## 1. Product Definition
 
-**Landly** is a fractional real estate investing platform focused on the Indian market.
+**Landly** is a two-sided fractional real estate platform focused on the Indian market.
 
 Core idea:
-- Property owners list land or real estate assets.
-- Admins review and approve listings.
-- Investors buy fractional shares in approved properties.
-- Investors can also sell shares back through the platform's simulated market flow.
+- Help landowners who are asset-rich but cash-poor unlock liquidity without fully selling their asset.
+- Let middle-class and lower-middle-class investors participate in real estate from a low ticket size.
+- Use admin verification as the trust layer between both sides.
+- Present properties as credible, understandable investment opportunities rather than as exchange-style speculative instruments.
 
 Property categories currently supported:
 - Agricultural
@@ -20,14 +20,26 @@ Property categories currently supported:
 - Commercial
 
 Primary value proposition:
-- Retail investors can start from a low ticket size.
-- Real estate ownership is presented with fintech-style clarity and trading metaphors.
-- The current product direction blends real estate discovery, portfolio tracking, and a lightweight trading terminal.
+- Landowners can fractionalize only part of an asset and retain ownership of the rest.
+- Retail investors can start from a low ticket size and understand what they are buying into.
+- The product should feel verification-first, ownership-first, and trust-heavy.
+- Real estate clarity is still important, but stock/crypto exchange metaphors are no longer the desired centerpiece.
 
 Current product maturity:
 - This is not an empty scaffold.
 - The product already has a complete visual system, page set, and working API surface.
-- The main gaps are production hardening, richer data/media, auth enforcement, and transactional robustness.
+- The current build is in transition from a trading-demo framing to a more believable property-investment and landowner-liquidity story.
+- The main gaps are production hardening, richer data/media, stronger trust surfaces, and more professional demo data/UX.
+
+### Current strategic direction (authoritative)
+
+For upcoming work, the following priorities override older trading-oriented assumptions:
+
+- The owner journey matters as much as the investor journey.
+- Listing a property should feel like a serious verification process, not a thin demo form.
+- Admin should feel like a verification workspace, not raw CRUD over database rows.
+- Property detail should emphasize investment snapshot, ownership split, funding progress, verification, and trust.
+- Synthetic exchange visuals are legacy implementation detail, not the long-term UX direction.
 
 ---
 
@@ -48,13 +60,17 @@ This is the actual state of the repo as of 2026-03-23.
 - Shared navbar and auth context
 - Realtime live ticker and transaction feed
 - Buy-shares and sell-shares flows
-- Synthetic market data endpoint for charts and order book
+- Partial ownership support in the property model via `fraction_listed`
+- Synthetic market data endpoint and exchange-style visuals still exist in the codebase, but they are no longer the preferred product framing
 
 ### What is not yet production-ready
 
 - Property imagery is partial rather than comprehensive
 - The `/admin` page route itself is still reachable, but admin APIs are now role-protected server-side
 - Several stub directories still exist with no implementation
+- The owner listing flow now uses a premium five-step structure with ownership, story, and document stages, but many of those verification-oriented fields are still UI/demo-only until the backend expands
+- The admin surface still feels more like operational CRUD than a deliberate review pipeline
+- Legacy synthetic market data and exchange-style helpers still exist in the codebase and should not drive future UX decisions by default
 
 ### Important correction
 
@@ -69,56 +85,89 @@ This is the actual state of the repo as of 2026-03-23.
 | Layer | Technology | Version / Notes |
 |------|------------|-----------------|
 | Framework | Next.js App Router | 16.2.1 |
-| React | React | 19.2.4 |
-| Styling | Tailwind CSS 4 | theme tokens defined directly in CSS via `@theme inline` |
-| Animation | Framer Motion | 12.38.0 |
-| Auth | Supabase Auth | client-side session usage |
-| Database | Supabase Postgres | queried directly via Supabase JS client |
-| Realtime | Supabase Realtime | `postgres_changes` subscriptions on `transactions` |
+- the current implementation now follows a professional five-step structure:
+  - Basic Details
+  - Ownership Details
+  - Financial Details
+  - Property Story
+  - Documents and Declaration
 | Deployment | Vercel | production deployment |
+- keep the payload compatible with the current listing API while exposing richer verification-ready UI fields
 
 ---
 
 ## 4. Required Environment Variables
 
 Local development depends on `.env.local`.
+2. Header summary
+- title and supporting copy oriented around credible review-readiness
+- right-side pricing structure card with live read-only `Price per share`
 
-Required keys:
-
-```env
+3. Step indicator row
+- `1 Basic Details`
+- `2 Ownership Details`
+- `3 Financial Details`
+- `4 Property Story`
+- `5 Documents and Declaration`
 NEXT_PUBLIC_SUPABASE_URL=<your-supabase-project-url>
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-supabase-anon-or-publishable-key>
+4. Step content
 ```
-
+Step 1 `Basic Details`
 Notes:
-- Each key must be on its own line.
+- property type segmented selection buttons
+- full address
+- city
+- state
+- pin code
+- total area
+- area unit
+
+Step 2 `Ownership Details`
+- owner full name
+- owner Aadhaar number
+- owner PAN number
+- relationship to property
+- outstanding loans yes/no toggle
+- conditional loan amount + lender name when yes
+
+Step 3 `Financial Details`
+- owner asking valuation
+- total shares
+- listed percentage / investor allocation input
+- owner retained percentage as a derived read-only field
+- monthly rental income optional
+- currently rented yes/no toggle
+- read-only DM Mono pricing summary
+- the selected listed percentage now submits as `fractionPercent`, while owner retention is derived as the remainder
+
+Step 4 `Property Story`
 - The Supabase URL should use the normal project host format, typically `https://<project-ref>.supabase.co`.
-- Localhost can fail while Vercel works if `.env.local` is malformed even when the Git code is identical.
-
----
-
 ## 5. Directory Map
-
-```text
-app/
-  globals.css
-  layout.tsx
+- nearby infrastructure multi-select
+- investment highlights textarea
   page.tsx
-  login/page.tsx
-  signup/page.tsx
+Step 5 `Documents and Declaration`
+- non-blocking upload inputs for title deed, encumbrance certificate, khata, tax receipt, Aadhaar, PAN, and type-specific documents
+- declarations for legal standing, listing terms, and document review consent
+- final review panel summarizing every field shown in the flow
   marketplace/page.tsx
-  property/[id]/page.tsx
-  dashboard/page.tsx
-  list-property/page.tsx
-  admin/page.tsx
+5. Navigation row
+- `Back` text button when not on first step
+- gold `Continue` button for steps 1 through 4
+- green `Submit for Review` button on final step
   components/
-    AuthProvider.tsx
+6. Right-side sticky summary
+- submission snapshot with address, owner, valuation, and share price
+- clear split between fully wired backend fields and UI/demo-only fields
+
+7. Error state
     AuthGateModal.tsx
     Navbar.tsx
-    FilterBar.tsx
+8. Success state after submission
     PropertyCard.tsx
     PropertyTradingTerminal.tsx
     SharePurchaseWidget.tsx
+- clarifies that core listing details were submitted while supporting documents remain optional in demo mode
     LiveTicker.tsx
     TransactionFeed.tsx
   lib/
@@ -171,9 +220,14 @@ The UI is intentionally not generic SaaS white-card design.
 It is:
 - dark
 - cinematic
-- fintech-adjacent
+- premium property-tech
 - premium but not luxurious
-- modern Indian investment platform rather than American stock broker clone
+- modern Indian investment platform rather than an American stock broker clone
+
+Design intent for future work:
+- trust before spectacle
+- ownership clarity before market complexity
+- strong visuals only when they reinforce believable property/investment meaning
 
 ### Theme tokens
 
@@ -207,9 +261,11 @@ Framer Motion is used throughout for:
 - nav underline transitions via `layoutId`
 - filter pill transitions via `layoutId`
 - hero parallax on landing page
-- chart/orderbook width animations
 - slide-in mobile drawer
 - modal entrance/exit
+
+Guidance:
+- motion should reinforce hierarchy and confidence, not simulate market activity for its own sake
 
 ### Global shell behavior
 
@@ -230,7 +286,7 @@ Framer Motion is used throughout for:
 | `/login` | email + Google sign-in |
 | `/signup` | email + Google sign-up with role choice |
 | `/marketplace` | browse live properties |
-| `/property/[id]` | property detail and trading terminal |
+| `/property/[id]` | property detail and investment panel |
 | `/dashboard` | investor portfolio |
 | `/list-property` | owner submission flow |
 | `/admin` | admin operations console |
@@ -248,15 +304,16 @@ Investor flow:
 Owner flow:
 1. Sign up as owner
 2. Open list-property flow
-3. Submit property
-4. Wait for admin approval
+3. Submit a verification-grade listing with ownership, financial, and document context
+4. Wait for admin review and approval
+5. Eventually track listing status and funding progress in an owner-oriented experience
 
 Admin flow:
 1. Open admin page
-2. Inspect overview metrics
-3. Moderate properties
-4. Edit users and balances
-5. Inspect platform transactions
+2. Review submitted properties
+3. Verify ownership and listing readiness
+4. Approve or reject properties for marketplace launch
+5. Manage platform health, users, and transactions
 
 ---
 
@@ -380,22 +437,25 @@ Behavior:
 ### `PropertyTradingTerminal`
 
 Purpose:
-- central trading UI on property detail page
+- central investment and transaction UI on the property detail page
 
 Top summary strip:
-- heading `Trading Terminal`
-- subcopy: chart, price trend, live order execution
+- heading `Investment Panel`
+- subcopy should orient around property performance, ownership clarity, and investor actions
 - current price in large gold mono text
-- 24h change in green or red with arrow
+- yield / verification / progress cues are preferred over synthetic market-style deltas
 
 Main two-column layout on large screens:
-- left: line chart area
-- right: auth gate or trade ticket
+- left: investment visual area
+- right: auth gate or buy/sell ticket
 
-Chart area:
-- dark rounded panel
-- SVG line chart from synthetic market history
-- left/right timestamps under chart
+Strategic target for the left-side visual area:
+- investment snapshot
+- ownership split visual
+- funding progress visual
+
+Current code note:
+- the component still contains synthetic chart and order-book logic, but that is legacy framing and is being phased out in favor of property-relevant visuals
 
 Trade ticket when logged out:
 - centered lock icon
@@ -414,10 +474,12 @@ Trade ticket when logged in:
 - inline error box on failure
 - temporary success label when successful
 
-Below chart:
-- two-column order book
-- left: bid orders with green depth bars
-- right: ask orders with red depth bars
+Legacy implementation details still present in code:
+- order book
+- spread / mid-price
+- open orders
+
+These should not be treated as the product's defining UX direction.
 
 ### `SharePurchaseWidget`
 
@@ -445,20 +507,16 @@ Visual structure from top to bottom:
 - large blurred gold ambient glow
 - fixed transparent nav inside hero
 - eyebrow text: `Landly`
-- H1: `Own a piece of India.` then `From ₹100.` in gold
-- supporting paragraph about fractional real estate in India
-- two CTAs:
-  - green `Start Investing`
-  - bordered `Explore Properties`
+- target message should immediately communicate both sides of the marketplace:
+  - landowners unlock liquidity without fully selling
+  - investors enter real estate from a low ticket size
+- CTA structure should clearly split the two audiences
 - animated mouse-scroll hint at bottom
 
 2. `How It Works` section
 - centered heading block
-- 3-step horizontal process on desktop
-- steps:
-  - `01 List Your Property`
-  - `02 We Verify & Split`
-  - `03 Investors Buy Shares`
+- should explain the product in a way judges can understand in seconds
+- owner and investor logic should both be visible in the overall narrative
 
 3. `What You Can Invest In` section
 - 3 centered columns with emoji icons
@@ -468,12 +526,8 @@ Visual structure from top to bottom:
 - each shows short pitch and starting share price
 
 4. Stats + final CTA section
-- 3 big metrics:
-  - `6 Properties Listed`
-  - `1,200+ Investors`
-  - `₹3.5 Cr+ Platform Value`
-- final CTA headline: `Ready to own your piece?`
-- green button: `Get Started — It's Free`
+- public stats should be real or clearly supportable
+- avoid hardcoded vanity numbers that create credibility risk during a demo
 
 5. Footer
 - brand text left-ish/centered depending width
@@ -543,7 +597,7 @@ Data expectations:
 ### `/property/[id]`
 
 Purpose:
-- detail page for a single property plus trading interface
+- detail page for a single property plus investment interface
 
 Structure:
 
@@ -557,30 +611,42 @@ Structure:
 
 2. Main content stack
 - `About this property`
-- `Investment Details`
-  - total value
-  - share price
+- `Property Essentials`
+  - asking valuation
+  - price per share
   - total shares
-  - available shares
-- funding progress bar with funded percentage
+  - verification status
+  - listed shares
+  - reviewed document count
 - `PropertyTradingTerminal`
-- `Documents` placeholder block
+- verification / documents / trust block
 - `TransactionFeed`
 
 Behavior:
 - also fetches user wallet balance if authenticated
 
+Strategic target:
+- this page should feel like a credible property investment brief
+- visuals should center on investment snapshot, ownership split, and funding progress
+- exchange-style charting and order-book behavior should be treated as legacy, not as the preferred presentation
+
 ### `/dashboard`
 
 Purpose:
-- investor account overview
+- dual-mode account overview for investors and owners
 
 Structure:
 
 1. Header
-- title `Dashboard`
+- title `Dashboard` or `Owner Dashboard` based on role
 
-2. Portfolio summary cards
+2. Owner summary cards when role is `owner`
+- listed asset value
+- capital raised
+- live listings count
+- pending review count
+
+3. Portfolio summary cards
 - total invested
 - current value
 - gain/loss with green or red text
@@ -599,17 +665,34 @@ Holding card contents:
 - invested amount
 - current value
 
-5. Recent transactions section
+5. Owner listings section when role is `owner`
+- title `Your Listed Properties`
+- CTA to `/list-property`
+- cards show status, asset value, capital raised, listed percent, retained percent, funding progress, and yield if available
+
+6. Recent transactions section
 - title `Recent Transactions`
 - simple table with property, shares, amount, date
 
 Behavior:
 - redirects unauthenticated users to `/login`
+- resolves the user role from auth metadata, local storage, and `profiles`
+- fetches owner listings from `/api/properties/mine` when the user role is `owner`
 
 ### `/list-property`
 
 Purpose:
 - owner submission wizard
+
+Strategic target:
+- the form should feel serious enough for verification and landowner onboarding, not like a thin placeholder
+- upcoming iterations should prefer a professional multi-step structure with:
+  - Basic Details
+  - Ownership Details
+  - Financial Details
+  - Property Story
+  - Documents and Declaration
+- document upload inputs may exist in demo mode without being hard blockers for submission
 
 Structure:
 
@@ -633,10 +716,11 @@ Step 2 `Details`
 - three numeric inputs:
   - total value
   - total shares
-  - price per share
+  - listed ownership percentage
+  - price per share is computed from total value and total shares
 
 Step 3 `Review`
-- summary card showing title, location, type, total value, total shares, price/share, description
+- summary card shows title, location, type, total value, total shares, computed price/share, listed percentage, retained percentage, and description
 
 4. Navigation row
 - `Back` text button when not on first step
@@ -654,7 +738,7 @@ Step 3 `Review`
 ### `/admin`
 
 Purpose:
-- operations console for platform management
+- operations console for platform verification and management
 
 Top shell:
 - page title `Admin Control Center`
@@ -716,6 +800,11 @@ Transactions tab:
 Important note:
 - The page remains a visible route, but the underlying admin APIs now require an authenticated admin user and the admin client sends auth headers with each request.
 
+Strategic target:
+- admin should evolve toward a review pipeline for submitted properties
+- the ideal feel is verification workspace, not blunt CRUD
+- pending listings, owner details, financial summary, document readiness, and approval actions should be the center of gravity
+
 ---
 
 ## 10. Data Model and Types
@@ -736,10 +825,8 @@ Helpers:
 - `formatINR(amount)` formats numbers as Indian rupee currency
 - `percentSold(property)` computes sold share percentage from `total_shares` and `shares_available`
 
----
-
-## 11. Auth Model
-
+- heading and copy now frame the surface as investment infrastructure, not a trading console
+- verification status remains visible but secondary to the ownership and funding story
 ### Frontend auth behavior
 
 - App is wrapped in `AuthProvider` from `app/layout.tsx`
@@ -750,32 +837,32 @@ Helpers:
 
 ### Signup behavior
 
-Email signup uses:
-
+Current code note:
+- the component now avoids synthetic charting and order-book style presentation
+- funding is shown through ownership-aware progress and capital-raised visuals instead of fake price volatility
 ```ts
 supabase.auth.signUp({
   email,
-  password,
+- sign-in-to-participate state with minimum ticket, open shares, and verification context
   options: { data: { full_name, role } },
 })
 ```
 
 Google signup/login uses:
-
-```ts
+- participation price and investment amount summary
 supabase.auth.signInWithOAuth({
   provider: 'google',
   options: { redirectTo: window.location.origin + '/marketplace' },
-})
+- wallet balance panel
 ```
 
 ### Database requirement
+Removed from the primary experience:
+- synthetic price-history chart emphasis
+- spread / mid-price style framing
+- order-book style mental model
 
-Profiles are not manually inserted by the frontend.
-They are created by a DB trigger `handle_new_user` after auth user creation.
-
----
-
+These should not be reintroduced as the product's defining UX direction.
 ## 12. Backend API Surface
 
 All routes are implemented inside `app/api/`. Routes that write to RLS-protected tables (wallet, buy-shares, sell-shares, properties/list) use `createAuthClient(request)` from `lib/supabase.ts`, which forwards the caller's JWT via the `Authorization` header so Supabase RLS sees the correct `auth.uid()`. Read-only public routes (e.g. GET properties) use the shared anon client.
@@ -789,7 +876,7 @@ Client-side code calls `getAuthHeaders()` from `lib/supabase.ts` to attach the B
 | GET | `/api/properties` | returns all live properties |
 | GET | `/api/properties/mine` | returns the authenticated owner's listed properties and statuses |
 | GET | `/api/properties/[id]` | returns a single property |
-| GET | `/api/properties/[id]/market` | returns synthetic market chart + order book data |
+| GET | `/api/properties/[id]/market` | returns legacy synthetic market/order data still used by current UI surfaces |
 | POST | `/api/properties/list` | creates a pending property listing |
 | POST | `/api/buy-shares` | purchases shares, updates wallet, holdings, transactions |
 | POST | `/api/sell-shares` | sells shares, updates wallet, holdings, properties |
@@ -817,7 +904,7 @@ Client-side code calls `getAuthHeaders()` from `lib/supabase.ts` to attach the B
 
 - `buy-shares` trusts the DB price, not a client-provided price
 - `sell-shares` computes average cost basis and deletes holding rows when shares reach zero
-- `wallet` now derives the acting user from the Bearer-authenticated Supabase session, rejects mismatched `userId` values, and returns the updated `wallet_balance` from the write itself
+- `wallet` now derives the acting user from the Bearer-authenticated Supabase session, calls `ensure_current_profile` / `add_wallet_funds`, enforces a top-up cap, and returns the updated balance from the RPC result
 - `buy-shares` and `sell-shares` now execute through transactional Postgres functions (`buy_property_shares`, `sell_property_shares`) so wallet/property/holding/transaction writes are atomic
 - properties now support retained ownership via `fraction_listed`, so owners can fractionalize only part of an asset while retaining the remainder
 - properties now support nullable `estimated_yield` and JSON `documents` metadata for richer investment and trust signals
@@ -847,7 +934,9 @@ Using Supabase realtime subscriptions on `transactions`:
 - ask order book
 - spread, mid-price, and volume-derived behavior
 
-This means the interface looks like a trading product even though the market depth is simulated.
+Important strategic note:
+- these surfaces exist today, but they are not the preferred storytelling layer for Landly
+- future product presentation should prefer ownership, verification, and funding-progress visuals over simulated exchange depth
 
 ---
 
@@ -866,6 +955,10 @@ Why it exists:
 - keep transaction feeds populated
 - make the platform feel active without requiring many manual trades
 
+Guidance:
+- simulation should stay believable and restrained
+- high-volume fake activity is not the product goal and can damage trust during demos
+
 ---
 
 ## 15. Known Gaps and Risks
@@ -876,6 +969,8 @@ Why it exists:
 - Stub directories exist and may mislead collaborators if assumed to be active surfaces.
 - Marketplace previously crashed if API returned an error object instead of an array; frontend should be made more defensive.
 - Some local dev warnings may appear from Turbopack or motion/scroll configuration and are not always production issues.
+- The old trading metaphor can still distort the product story if assistants preserve charts/order books by default.
+- Listing UX, admin review UX, and property-detail trust surfaces are now the highest-value product improvements.
 
 ---
 
@@ -886,9 +981,10 @@ This section exists specifically so another model can generate precise implement
 ### What an assistant should assume by default
 
 - The frontend is already visually established; do not redesign from scratch unless explicitly asked.
-- The design language is dark, premium, animated, and data-forward.
+- The design language is dark, premium, animated, and trust-forward.
 - The product already includes both investor UX and admin UX.
-- The property detail page uses a trading-terminal metaphor, not a simple brochure layout.
+- The product goal is two-sided: landowner liquidity plus accessible investing.
+- Some currently implemented trading-style surfaces are legacy and should not automatically be preserved.
 - Shared components should be reused rather than duplicated.
 - Supabase is the only backend/data/auth service in active use.
 
@@ -902,6 +998,8 @@ This section exists specifically so another model can generate precise implement
 - API contracts already present in code
 - The overall tone of Landly as a modern Indian fractional property investment platform
 
+Unless a task explicitly asks to preserve them, do not protect exchange-like UI metaphors as part of the brand.
+
 ### How to ask for frontend work effectively
 
 When writing prompts, specify:
@@ -913,7 +1011,7 @@ When writing prompts, specify:
 
 Good prompt example:
 
-> Update the `/property/[id]` page to add a verified-documents panel below the trading terminal. Preserve the existing dark Landly visual style, keep the current chart and order book layout, and do not change any API contracts.
+> Update the `/property/[id]` page to add an ownership split visual and a verified-documents panel below the investment snapshot. Preserve the existing dark Landly visual style, remove exchange-like chart/order-book emphasis, and do not change any API contracts unless necessary.
 
 Another good prompt example:
 
@@ -937,7 +1035,7 @@ Good prompt example:
 - Do not assume the app is unfinished or scaffold-level.
 - Do not assume white backgrounds or standard dashboard card layouts are appropriate.
 - Do not assume MongoDB exists anywhere meaningful in current code.
-- Do not assume the admin page is secured just because it exists.
+- Do not assume the current trading-oriented details are the desired end state.
 - Do not assume property images are implemented.
 
 ---
@@ -949,7 +1047,9 @@ Whenever major work is completed, update this file to reflect:
 - which routes/components/APIs were affected
 - whether any prompt-writing assumptions should change
 
-This document must stay aligned with the real codebase, not the intended roadmap.
+This document must stay aligned with both:
+- the real codebase
+- the active product direction being used to guide upcoming work
 
 ---
 

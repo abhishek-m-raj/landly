@@ -65,51 +65,15 @@ export interface PricePoint {
   volume: number;
 }
 
-export interface OrderBookLevel {
-  id: string;
-  side: "bid" | "ask";
-  price: number;
-  quantity: number;
-}
-
-export interface PropertyOrderBook {
-  bids: OrderBookLevel[];
-  asks: OrderBookLevel[];
-  spread: number;
-  midPrice: number;
-  totalBidVolume: number;
-  totalAskVolume: number;
-  lastUpdated: string;
-}
-
-export type OrderSide = "buy" | "sell";
-export type OrderType = "market" | "limit";
-export type OrderStatus = "open" | "partial" | "filled" | "cancelled";
-
-export interface Order {
-  id: string;
-  user_id: string;
-  property_id: string;
-  side: OrderSide;
-  order_type: OrderType;
-  price: number | null;
-  quantity: number;
-  filled_quantity: number;
-  status: OrderStatus;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface PropertyMarketData {
   propertyId: string;
   currency: "INR";
   currentPrice: number;
-  change24hAbs: number;
-  change24hPct: number;
   history: PricePoint[];
+  transactionCount: number;
+  latestActivityAt: string | null;
   sharesAvailable?: number;
   totalShares?: number;
-  orderbook: PropertyOrderBook;
 }
 
 export function formatINR(amount: number): string {
@@ -120,12 +84,32 @@ export function formatINR(amount: number): string {
   }).format(amount);
 }
 
-export function percentSold(property: Property): number {
+export function getListedShares(property: Pick<Property, "total_shares" | "fraction_listed" | "listed_shares">): number {
+  if (typeof property.listed_shares === "number" && Number.isFinite(property.listed_shares)) {
+    return Math.max(0, Math.trunc(property.listed_shares));
+  }
+
   const fractionListed = property.fraction_listed ?? 100;
-  const listedShares = Math.floor((property.total_shares * fractionListed) / 100);
-  const sharesSold = Math.max(0, listedShares - property.shares_available);
+  return Math.floor((property.total_shares * fractionListed) / 100);
+}
+
+export function getSharesSold(property: Pick<Property, "shares_available" | "total_shares" | "fraction_listed" | "listed_shares" | "shares_sold">): number {
+  if (typeof property.shares_sold === "number" && Number.isFinite(property.shares_sold)) {
+    return Math.max(0, Math.trunc(property.shares_sold));
+  }
+
+  return Math.max(0, getListedShares(property) - property.shares_available);
+}
+
+export function percentSold(property: Property): number {
+  const listedShares = getListedShares(property);
+  const sharesSold = getSharesSold(property);
+
+  if (listedShares <= 0) {
+    return 0;
+  }
 
   return Math.round(
-    (sharesSold / property.total_shares) * 100
+    (sharesSold / listedShares) * 100
   );
 }

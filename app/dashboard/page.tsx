@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Navbar from "@/app/components/Navbar";
 import { useAuth } from "@/app/components/AuthProvider";
-import { type Property, type Holding, type Transaction, formatINR } from "@/app/lib/types";
-import { supabase } from "@/lib/supabase";
+import { type Property, type Holding, type Transaction, formatINR, getListedShares, getSharesSold } from "@/app/lib/types";
+import { getAuthHeaders, supabase } from "@/lib/supabase";
 
 const fadeUp = (delay: number) => ({
   hidden: { opacity: 0, y: 16 },
@@ -24,7 +24,7 @@ export default function DashboardPage() {
   const [holdings, setHoldings] = useState<(Holding & { property?: Property })[]>([]);
   const [transactions, setTransactions] = useState<(Transaction & { property?: Property })[]>([]);
   const [listedProperties, setListedProperties] = useState<Property[]>([]);
-  const [userRole, setUserRole] = useState<"investor" | "owner" | "admin" | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Redirect logged-out users to login
@@ -40,10 +40,10 @@ export default function DashboardPage() {
       if (!user) { setLoading(false); return; }
 
       const metadataRole = typeof user.user_metadata?.role === "string"
-        ? user.user_metadata.role as "investor" | "owner" | "admin"
+        ? user.user_metadata.role
         : null;
       const storedRole = typeof window !== "undefined"
-        ? window.localStorage.getItem("landly-user-role") as "investor" | "owner" | "admin" | null
+        ? window.localStorage.getItem("landly-user-role")
         : null;
 
       if (metadataRole) {
@@ -53,19 +53,7 @@ export default function DashboardPage() {
         setUserRole(storedRole);
       }
 
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      const resolvedRole = (profileData?.role as "investor" | "owner" | "admin" | undefined) ?? metadataRole ?? storedRole;
-      if (resolvedRole) {
-        setUserRole(resolvedRole);
-        window.localStorage.setItem("landly-user-role", resolvedRole);
-      }
-
-      const [holdingsRes, txRes, listedRes] = await Promise.all([
+      const [holdingsRes, txRes, profileRes] = await Promise.all([
         supabase
           .from("holdings")
           .select("*, property:properties(*)")
@@ -77,20 +65,40 @@ export default function DashboardPage() {
           .order("created_at", { ascending: false })
           .limit(10),
         supabase
-          .from("properties")
-          .select("*")
-          .eq("owner_id", user.id)
-          .order("created_at", { ascending: false }),
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle(),
       ]);
 
       if (holdingsRes.data) setHoldings(holdingsRes.data);
       if (txRes.data) setTransactions(txRes.data);
-      if (listedRes.data) setListedProperties(listedRes.data);
+
+      const resolvedRole = profileRes.data?.role ?? metadataRole ?? storedRole ?? null;
+      if (resolvedRole) {
+        setUserRole(resolvedRole);
+        window.localStorage.setItem("landly-user-role", resolvedRole);
+      }
+
+      if (resolvedRole === "owner") {
+        try {
+          const authHeaders = await getAuthHeaders();
+          const ownerRes = await fetch("/api/properties/mine", { headers: authHeaders });
+          if (ownerRes.ok) {
+            const ownerData = (await ownerRes.json()) as Property[];
+            setListedProperties(ownerData);
+          }
+        } catch {
+          setListedProperties([]);
+        }
+      }
+
       setLoading(false);
     }
     load();
   }, []);
 
+  const isOwner = userRole === "owner";
   const totalInvested = holdings.reduce((sum, h) => sum + h.total_invested, 0);
   const totalCurrentValue = holdings.reduce((sum, h) => {
     const prop = h.property;
@@ -98,22 +106,24 @@ export default function DashboardPage() {
   }, 0);
   const totalGain = totalCurrentValue - totalInvested;
   const gainPct = totalInvested > 0 ? ((totalGain / totalInvested) * 100).toFixed(1) : "0";
-  const isOwner = userRole === "owner";
-  const ownerRaised = listedProperties.reduce((sum, property) => {
-    const listedShares = Math.floor((property.total_shares * (property.fraction_listed ?? 100)) / 100);
-    const soldShares = Math.max(0, listedShares - property.shares_available);
-    return sum + soldShares * property.share_price;
+  const listedAssetValue = listedProperties.reduce((sum, property) => sum + property.total_value, 0);
+  const capitalRaised = listedProperties.reduce((sum, property) => {
+    const sharesSold = getSharesSold(property);
+    return sum + sharesSold * property.share_price;
   }, 0);
   const liveListings = listedProperties.filter((property) => property.status === "live").length;
   const pendingListings = listedProperties.filter((property) => property.status === "pending").length;
 
-  const ownerStatusClasses: Record<Property["status"], string> = {
-    pending: "bg-landly-gold/10 text-landly-gold",
-    verified: "bg-landly-green/10 text-landly-green",
-    live: "bg-landly-green/10 text-landly-green",
-    rejected: "bg-landly-red/10 text-landly-red",
-    sold: "bg-landly-slate/20 text-landly-offwhite",
-  };
+  function formatStatusLabel(status: Property["status"]) {
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+
+  function statusTone(status: Property["status"]) {
+    if (status === "live") return "bg-landly-green/10 text-landly-green";
+    if (status === "verified") return "bg-landly-gold/10 text-landly-gold";
+    if (status === "rejected") return "bg-landly-red/10 text-landly-red";
+    return "bg-landly-slate/10 text-landly-slate";
+  }
 
   if (loading) {
     return (
@@ -141,20 +151,20 @@ export default function DashboardPage() {
             <h1 className="font-sans text-3xl font-bold text-landly-offwhite">
               {isOwner ? "Owner Dashboard" : "Dashboard"}
             </h1>
-            <p className="mt-2 text-sm text-landly-slate">
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-landly-slate">
               {isOwner
-                ? "Track listed properties, review status, and see how much capital each listing has unlocked."
-                : "Monitor your portfolio, holdings, and recent activity in one place."}
+                ? "Track verification, funding progress, and the capital unlocked from your listed properties."
+                : "Review your holdings, current value, and recent investment activity in one place."}
             </p>
           </motion.div>
 
           {isOwner && (
-            <motion.div variants={fadeUp(0.04)} className="mt-8 grid gap-4 sm:grid-cols-4">
+            <motion.section variants={fadeUp(0.04)} className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {[
-                { label: "Listed Properties", value: listedProperties.length.toString() },
+                { label: "Listed Asset Value", value: formatINR(listedAssetValue) },
+                { label: "Capital Raised", value: formatINR(capitalRaised) },
                 { label: "Live Listings", value: liveListings.toString() },
                 { label: "Pending Review", value: pendingListings.toString() },
-                { label: "Capital Unlocked", value: formatINR(ownerRaised) },
               ].map((item) => (
                 <div
                   key={item.label}
@@ -168,83 +178,7 @@ export default function DashboardPage() {
                   </span>
                 </div>
               ))}
-            </motion.div>
-          )}
-
-          {isOwner && (
-            <motion.div variants={fadeUp(0.08)} className="mt-10">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="font-sans text-xl font-semibold text-landly-offwhite">Your Listed Properties</h2>
-                  <p className="mt-1 text-sm text-landly-slate">
-                    Each listing shows review status and the capital unlocked so far.
-                  </p>
-                </div>
-                <Link
-                  href="/list-property"
-                  className="inline-flex h-11 items-center justify-center rounded-[var(--radius-land)] bg-landly-green px-5 text-sm font-semibold text-white transition-all hover:brightness-110"
-                >
-                  List Another Property
-                </Link>
-              </div>
-
-              {listedProperties.length === 0 ? (
-                <div className="mt-4 rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/40 p-6">
-                  <p className="text-sm text-landly-slate">
-                    No properties submitted yet. Start your first listing to unlock capital without fully selling your land.
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                  {listedProperties.map((property) => {
-                    const listedShares = Math.floor((property.total_shares * (property.fraction_listed ?? 100)) / 100);
-                    const soldShares = Math.max(0, listedShares - property.shares_available);
-                    const amountRaised = soldShares * property.share_price;
-
-                    return (
-                      <Link
-                        key={property.id}
-                        href={`/property/${property.id}`}
-                        className="group rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/50 p-5 transition-all hover:border-landly-slate/25"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <h3 className="font-sans text-base font-semibold text-landly-offwhite transition-colors group-hover:text-landly-gold">
-                              {property.title}
-                            </h3>
-                            <p className="mt-1 text-xs text-landly-slate">{property.location}</p>
-                          </div>
-                          <span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${ownerStatusClasses[property.status]}`}>
-                            {property.status}
-                          </span>
-                        </div>
-
-                        <div className="mt-5 grid grid-cols-3 gap-3">
-                          <div>
-                            <span className="block font-mono text-sm font-semibold text-landly-gold">
-                              {formatINR(amountRaised)}
-                            </span>
-                            <span className="block text-[10px] uppercase tracking-wider text-landly-slate">Raised</span>
-                          </div>
-                          <div>
-                            <span className="block font-mono text-sm font-semibold text-landly-offwhite">
-                              {soldShares}
-                            </span>
-                            <span className="block text-[10px] uppercase tracking-wider text-landly-slate">Shares Sold</span>
-                          </div>
-                          <div>
-                            <span className="block font-mono text-sm font-semibold text-landly-offwhite">
-                              {property.fraction_listed}%
-                            </span>
-                            <span className="block text-[10px] uppercase tracking-wider text-landly-slate">Listed</span>
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </motion.div>
+            </motion.section>
           )}
 
           {/* portfolio summary */}
@@ -341,6 +275,105 @@ export default function DashboardPage() {
               </div>
             )}
           </motion.div>
+
+          {isOwner && (
+            <motion.section variants={fadeUp(0.12)} className="mt-12">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="font-sans text-xl font-semibold text-landly-offwhite">Your Listed Properties</h2>
+                  <p className="mt-1 text-sm text-landly-slate">
+                    Monitor status, funding, and retained ownership across every submission.
+                  </p>
+                </div>
+                <Link
+                  href="/list-property"
+                  className="inline-flex h-11 items-center justify-center rounded-[var(--radius-land)] border border-landly-gold/40 px-5 text-sm font-semibold text-landly-gold transition-colors hover:border-landly-gold hover:bg-landly-gold/5"
+                >
+                  List Another Property
+                </Link>
+              </div>
+
+              {listedProperties.length === 0 ? (
+                <div className="mt-4 rounded-[var(--radius-land)] border border-dashed border-landly-slate/20 px-6 py-8">
+                  <p className="text-sm text-landly-slate">
+                    No submitted properties yet. Start your first listing to enter Landly’s review pipeline.
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                  {listedProperties.map((property, index) => {
+                    const listedShares = getListedShares(property);
+                    const sharesSold = getSharesSold(property);
+                    const listedPercent = property.fraction_listed ?? 100;
+                    const retainedPercent = property.owner_retained_percent ?? Math.max(0, 100 - listedPercent);
+                    const raised = sharesSold * property.share_price;
+                    const progress = property.percent_funded ?? (listedShares > 0 ? Math.min(100, Math.round((sharesSold / listedShares) * 100)) : 0);
+
+                    return (
+                      <motion.div
+                        key={property.id}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.06 + 0.15 }}
+                        className="rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/50 p-5"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <h3 className="font-sans text-lg font-semibold text-landly-offwhite">{property.title}</h3>
+                            <p className="mt-1 text-sm text-landly-slate">{property.location}</p>
+                          </div>
+                          <span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${statusTone(property.status)}`}>
+                            {formatStatusLabel(property.status)}
+                          </span>
+                        </div>
+
+                        <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
+                          <div>
+                            <span className="block text-[10px] uppercase tracking-wider text-landly-slate">Asset value</span>
+                            <span className="mt-1 block font-mono text-sm font-semibold text-landly-gold">{formatINR(property.total_value)}</span>
+                          </div>
+                          <div>
+                            <span className="block text-[10px] uppercase tracking-wider text-landly-slate">Raised</span>
+                            <span className="mt-1 block font-mono text-sm font-semibold text-landly-offwhite">{formatINR(raised)}</span>
+                          </div>
+                          <div>
+                            <span className="block text-[10px] uppercase tracking-wider text-landly-slate">Listed</span>
+                            <span className="mt-1 block font-mono text-sm font-semibold text-landly-offwhite">{listedPercent}%</span>
+                          </div>
+                          <div>
+                            <span className="block text-[10px] uppercase tracking-wider text-landly-slate">Retained</span>
+                            <span className="mt-1 block font-mono text-sm font-semibold text-landly-offwhite">{retainedPercent}%</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-5">
+                          <div className="flex items-center justify-between text-xs uppercase tracking-[0.16em] text-landly-slate">
+                            <span>Funding progress</span>
+                            <span>{progress}%</span>
+                          </div>
+                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-landly-slate/15">
+                            <div className="h-full rounded-full bg-landly-gold" style={{ width: `${progress}%` }} />
+                          </div>
+                        </div>
+
+                        <div className="mt-5 flex items-center justify-between">
+                          <div className="text-xs uppercase tracking-[0.16em] text-landly-slate">
+                            {property.estimated_yield != null ? `Yield ~${property.estimated_yield.toFixed(1)}%` : "Yield under review"}
+                          </div>
+                          <Link
+                            href={`/property/${property.id}`}
+                            className="text-sm font-semibold text-landly-gold transition-colors hover:text-landly-offwhite"
+                          >
+                            View Listing
+                          </Link>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.section>
+          )}
 
           {/* recent transactions */}
           <motion.div variants={fadeUp(0.15)} className="mt-12">

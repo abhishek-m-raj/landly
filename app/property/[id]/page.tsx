@@ -5,31 +5,22 @@ import { use, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { notFound } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
-import PropertyTradingTerminal from "@/app/components/PropertyTradingTerminal";
+import PropertyTradingTerminal from "../../components/PropertyTradingTerminal";
 import TransactionFeed from "@/app/components/TransactionFeed";
-import { type Property, formatINR, percentSold } from "@/app/lib/types";
+import { type Property, formatINR, getListedShares, getSharesSold, percentSold } from "@/app/lib/types";
 import { useAuth } from "@/app/components/AuthProvider";
 import { getAuthHeaders } from "@/lib/supabase";
 
 const TYPE_COLORS: Record<string, string> = {
-  agricultural: "bg-landly-green/80",
-  residential: "bg-landly-slate/80",
+  agricultural: "bg-emerald-600/80",
+  residential: "bg-sky-600/80",
   commercial: "bg-landly-gold/80",
 };
 
-const verificationChecks = [
-  {
-    title: "Title Deed Verified",
-    detail: "Ownership and transfer records reviewed by Landly verification.",
-  },
-  {
-    title: "Survey Report Verified",
-    detail: "Boundary, acreage, and site details matched to submitted documents.",
-  },
-  {
-    title: "Legal Clearance Verified",
-    detail: "Core legal and listing compliance checks cleared before investor access.",
-  },
+const DEFAULT_DOCUMENTS = [
+  { name: "Title deed and ownership records", verified: true },
+  { name: "Survey and measurement report", verified: true },
+  { name: "Basic legal clearance pack", verified: true },
 ];
 
 const fadeUp = (delay: number) => ({
@@ -85,7 +76,11 @@ export default function PropertyDetailPage({
 
   if (!property) return notFound();
 
-  const sold = percentSold(property);
+  const listedShares = getListedShares(property);
+  const listedPercent = property.fraction_listed ?? 100;
+  const ownerRetainedPercent = property.owner_retained_percent ?? Math.max(0, 100 - listedPercent);
+  const estimatedYield = property.estimated_yield;
+  const visibleDocuments = property.documents?.length ? property.documents : DEFAULT_DOCUMENTS;
 
   return (
     <div className="flex min-h-svh flex-col bg-landly-navy">
@@ -145,19 +140,24 @@ export default function PropertyDetailPage({
               </p>
             </motion.section>
 
-            {/* key details */}
+            {/* property essentials */}
             <motion.section variants={fadeUp(0.1)} className="mt-8">
               <h2 className="font-sans text-lg font-semibold text-landly-offwhite">
-                Investment Details
+                Property Essentials
               </h2>
-              <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-landly-slate">
+                Core listing terms stay visible here. The ownership split, funding posture, and participation controls are consolidated into the investment panel below.
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
                 {[
-                  { label: "Total Value", value: formatINR(property.total_value) },
-                  { label: "Share Price", value: formatINR(property.share_price) },
+                  { label: "Asking Valuation", value: formatINR(property.total_value) },
+                  { label: "Price Per Share", value: formatINR(property.share_price) },
                   { label: "Total Shares", value: property.total_shares.toString() },
-                  { label: "Available", value: property.shares_available.toString() },
+                  { label: "Verification Status", value: property.status.charAt(0).toUpperCase() + property.status.slice(1) },
+                  { label: "Listed Shares", value: listedShares.toString() },
+                  { label: "Documents in Review", value: visibleDocuments.length.toString() },
                 ].map((item) => (
-                  <div key={item.label} className="rounded-[var(--radius-land)] bg-landly-navy-deep/50 p-4">
+                  <div key={item.label} className="rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/50 p-4">
                     <span className="block font-mono text-lg font-semibold text-landly-gold">
                       {item.value}
                     </span>
@@ -167,27 +167,9 @@ export default function PropertyDetailPage({
                   </div>
                 ))}
               </div>
-
-              {/* progress */}
-              <div className="mt-4">
-                <div className="flex items-center justify-between text-xs text-landly-slate">
-                  <span>{sold}% funded</span>
-                  <span>
-                    {property.total_shares - property.shares_available} / {property.total_shares} shares sold
-                  </span>
-                </div>
-                <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-landly-slate/20">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${sold}%` }}
-                    transition={{ duration: 1.2, ease: "easeOut" }}
-                    className="h-full rounded-full bg-landly-green"
-                  />
-                </div>
-              </div>
             </motion.section>
 
-            {/* price chart and orderbook */}
+            {/* main investment infrastructure panel */}
             <motion.div variants={fadeUp(0.2)} className="mt-8">
               <PropertyTradingTerminal
                 propertyId={property.id}
@@ -202,23 +184,60 @@ export default function PropertyDetailPage({
               <h2 className="font-sans text-lg font-semibold text-landly-offwhite">
                 Verification Proof
               </h2>
-              <div className="mt-4 grid gap-4 md:grid-cols-3">
-                {verificationChecks.map((item) => (
-                  <div
-                    key={item.title}
-                    className="rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/50 p-5"
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-landly-green/10 text-lg text-landly-green">
-                      ✓
+              <div className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+                <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-1">
+                  {[
+                    {
+                      title: "Owner identity reviewed",
+                      detail: "Landly confirms the current owner before a fractional listing is made visible to investors.",
+                    },
+                    {
+                      title: "Asset structure checked",
+                      detail: `This listing opens ${listedPercent}% to investors while the owner retains ${ownerRetainedPercent}% of the asset.`,
+                    },
+                    {
+                      title: "Investment context disclosed",
+                      detail: estimatedYield != null
+                        ? `Estimated annual yield is currently modelled at about ${estimatedYield.toFixed(1)}%.`
+                        : "Yield guidance is still under review and will be disclosed once underwriting is finalized.",
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.title}
+                      className="rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/50 p-5"
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-landly-green/10 text-lg text-landly-green">
+                        ✓
+                      </div>
+                      <h3 className="mt-4 font-sans text-base font-semibold text-landly-offwhite">
+                        {item.title}
+                      </h3>
+                      <p className="mt-2 text-sm leading-relaxed text-landly-slate">
+                        {item.detail}
+                      </p>
                     </div>
-                    <h3 className="mt-4 font-sans text-base font-semibold text-landly-offwhite">
-                      {item.title}
-                    </h3>
-                    <p className="mt-2 text-sm leading-relaxed text-landly-slate">
-                      {item.detail}
-                    </p>
+                  ))}
+                </div>
+
+                <div className="rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy-deep/45 p-5">
+                  <p className="text-xs uppercase tracking-[0.16em] text-landly-gold">Documents and review trail</p>
+                  <div className="mt-4 space-y-3">
+                    {visibleDocuments.map((document) => (
+                      <div
+                        key={document.name}
+                        className="flex items-center justify-between rounded-[var(--radius-land)] border border-landly-slate/10 bg-landly-navy/50 px-4 py-3"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-landly-offwhite">{document.name}</p>
+                          <p className="mt-1 text-xs text-landly-slate">Included in the current review pack.</p>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${document.verified ? "bg-landly-green/10 text-landly-green" : "bg-landly-gold/10 text-landly-gold"}`}>
+                          {document.verified ? "Verified" : "Submitted"}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
               </div>
             </motion.section>
 

@@ -2,19 +2,11 @@ import { NextResponse } from 'next/server';
 import { type NextRequest } from 'next/server';
 import { createAuthClient } from '@/lib/supabase';
 
+const MAX_WALLET_TOP_UP = 100000;
+
 export async function GET(request: NextRequest) {
   const supabase = createAuthClient(request);
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: authError?.message || 'Unauthorized' }, { status: 401 });
-  }
-
   const { data, error } = await supabase.rpc('ensure_current_profile');
-
   const profile = Array.isArray(data) ? data[0] : data;
 
   if (error || !profile) {
@@ -26,7 +18,6 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   const supabase = createAuthClient(request);
-  const MAX_WALLET_TOP_UP = 100000;
   try {
     const body = await request.json();
     const requestedUserId = typeof body.userId === 'string' ? body.userId : null;
@@ -58,11 +49,14 @@ export async function POST(request: Request) {
     const { data, error } = await supabase.rpc('add_wallet_funds', {
       add_amount: addAmount,
     });
-
     const result = Array.isArray(data) ? data[0] : data;
 
     if (error || !result) {
-      const status = error?.message === 'amount must be a positive number' ? 400 : 500;
+      const status =
+        error?.message === 'amount must be a positive number' ||
+        error?.message === 'Unauthorized'
+          ? 400
+          : 500;
       return NextResponse.json({ error: error?.message || 'Failed to add funds' }, { status });
     }
 

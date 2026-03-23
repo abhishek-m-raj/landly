@@ -156,8 +156,8 @@ export default function Navbar({ transparent = false }: NavbarProps) {
 
   const NAV_LINKS = [
     { href: "/marketplace", label: "Marketplace" },
-    ...(user ? [{ href: "/list-property", label: isOwner ? "List Property" : "List Your Property" }] : []),
-    ...(user ? [{ href: "/dashboard", label: "Dashboard" }] : []),
+    ...(user && isOwner ? [{ href: "/list-property", label: "List Property" }] : []),
+    ...(user ? [{ href: "/dashboard", label: isOwner ? "Owner Dashboard" : "Dashboard" }] : []),
     ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
   ];
 
@@ -182,9 +182,7 @@ export default function Navbar({ transparent = false }: NavbarProps) {
               className={`relative text-sm font-medium transition-colors ${
                 pathname === link.href
                   ? "text-landly-gold"
-                  : link.href === "/list-property" && isOwner
-                    ? "text-landly-offwhite hover:text-landly-gold"
-                    : "text-landly-offwhite/70 hover:text-landly-offwhite"
+                  : "text-landly-offwhite/70 hover:text-landly-offwhite"
               }`}
             >
               {link.label}
@@ -322,14 +320,16 @@ export default function Navbar({ transparent = false }: NavbarProps) {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
                       Profile
                     </Link>
-                    <Link
-                      href="/list-property"
-                      onClick={() => setAvatarOpen(false)}
-                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-landly-offwhite/80 transition-colors hover:bg-landly-slate/10 hover:text-landly-offwhite"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18" /><path d="M5 8h14" /><path d="M7 21h10" /></svg>
-                      List Property
-                    </Link>
+                    {isOwner && (
+                      <Link
+                        href="/list-property"
+                        onClick={() => setAvatarOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-landly-offwhite/80 transition-colors hover:bg-landly-slate/10 hover:text-landly-offwhite"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18" /><path d="M5 8h14" /><path d="M7 21h10" /></svg>
+                        List Property
+                      </Link>
+                    )}
                     <button
                       onClick={async () => {
                         setAvatarOpen(false);
@@ -430,8 +430,20 @@ export default function Navbar({ transparent = false }: NavbarProps) {
                       <p className="truncate text-sm font-medium text-landly-offwhite">
                         {user.user_metadata?.full_name || user.email}
                       </p>
+                      {isOwner && (
+                        <p className="mt-1 text-xs uppercase tracking-[0.16em] text-landly-gold">Owner</p>
+                      )}
                     </div>
                   </div>
+                  {isOwner && (
+                    <Link
+                      href="/list-property"
+                      onClick={() => setMobileOpen(false)}
+                      className="mb-3 block w-full rounded-(--radius-land) border border-landly-gold/30 py-2.5 text-center text-sm font-semibold text-landly-gold transition-all hover:bg-landly-gold/10"
+                    >
+                      List Property
+                    </Link>
+                  )}
                   <button
                     onClick={async () => {
                       setMobileOpen(false);
