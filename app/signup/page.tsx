@@ -7,20 +7,13 @@ import { motion } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import Navbar from "@/app/components/Navbar";
 
-type Role = "investor" | "owner";
-
 export default function SignupPage() {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<Role>("investor");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  function postSignupPath(selectedRole: Role) {
-    return selectedRole === "owner" ? "/list-property" : "/marketplace";
-  }
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -30,7 +23,7 @@ export default function SignupPage() {
     const { error: authError } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName, role } },
+      options: { data: { full_name: fullName, role: "investor" } },
     });
 
     if (authError) {
@@ -39,19 +32,18 @@ export default function SignupPage() {
       return;
     }
 
-    window.localStorage.setItem("landly-user-role", role);
-    router.push(postSignupPath(role));
+    window.localStorage.setItem("landly-user-role", "investor");
+    router.push("/marketplace");
   }
 
   async function handleGoogleSignup() {
     setError("");
-    const nextPath = postSignupPath(role);
-    window.localStorage.setItem("landly-user-role", role);
+    window.localStorage.setItem("landly-user-role", "investor");
 
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(nextPath)}`,
+        redirectTo: `${window.location.origin}/api/auth/callback?next=${encodeURIComponent("/marketplace")}`,
       },
     });
 
@@ -59,19 +51,6 @@ export default function SignupPage() {
       setError(oauthError.message);
     }
   }
-
-  const roleOptions: { value: Role; label: string; desc: string }[] = [
-    {
-      value: "investor",
-      label: "I want to invest",
-      desc: "Browse properties and buy fractional shares",
-    },
-    {
-      value: "owner",
-      label: "I want to list property",
-      desc: "List your land or property for investment",
-    },
-  ];
 
   return (
     <div className="flex min-h-svh flex-col bg-landly-navy">
@@ -136,29 +115,6 @@ export default function SignupPage() {
                 className="w-full rounded-[var(--radius-land)] border border-landly-slate/20 bg-landly-navy-deep px-4 py-3 text-sm text-landly-offwhite placeholder:text-landly-slate/50 outline-none transition-all focus:border-landly-gold/50 focus:ring-1 focus:ring-landly-gold/30"
                 placeholder="Min 6 characters"
               />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-landly-slate">
-                I am a…
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                {roleOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setRole(opt.value)}
-                    className={`rounded-[var(--radius-land)] border px-4 py-3 text-left transition-all ${
-                      role === opt.value
-                        ? "border-landly-gold bg-landly-gold/5 text-landly-offwhite"
-                        : "border-landly-slate/20 text-landly-slate hover:border-landly-slate/40"
-                    }`}
-                  >
-                    <span className="block text-sm font-semibold">{opt.label}</span>
-                    <span className="mt-0.5 block text-xs opacity-70">{opt.desc}</span>
-                  </button>
-                ))}
-              </div>
             </div>
 
             {error && (

@@ -16,6 +16,7 @@ export interface Property {
   fraction_listed: number;
   estimated_yield: number | null;
   share_price: number;
+  current_price: number | null;
   image_url: string;
   documents: PropertyDocument[];
   status: "pending" | "verified" | "live" | "rejected" | "sold";
@@ -106,6 +107,9 @@ export interface PropertyMarketData {
   currentPrice: number;
   change24hAbs: number;
   change24hPct: number;
+  hasRealData: boolean;
+  rangeHasData: boolean;
+  firstTradeAt: string | null;
   history: PricePoint[];
   sharesAvailable?: number;
   totalShares?: number;

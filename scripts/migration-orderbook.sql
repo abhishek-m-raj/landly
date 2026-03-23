@@ -68,3 +68,9 @@ CREATE POLICY "Anyone can view trades for market data" ON trades FOR SELECT USIN
 -- 3. cancel_order()
 -- ============================================================
 -- See: supabase/migrations/*_add_cancel_order_function.sql
+
+-- ============================================================
+-- 5. insert_test_trades() — Admin test data injection
+-- ============================================================
+-- See: supabase/migrations/*_add_insert_test_trades_function.sql
+-- SECURITY DEFINER function that bypasses RLS to insert synthetic trades.

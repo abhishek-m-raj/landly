@@ -16,6 +16,13 @@ interface TradeRow {
   created_at: string;
 }
 
+interface TxRow {
+  id: string;
+  price_per_share: number;
+  shares: number;
+  created_at: string;
+}
+
 interface OrderRow {
   id: string;
   side: string;
@@ -31,66 +38,90 @@ interface AggLevel {
   quantity: number;
 }
 
-function seedFromId(id: string) {
-  let seed = 0;
-  for (let i = 0; i < id.length; i += 1) {
-    seed = (seed * 31 + id.charCodeAt(i)) % 2147483647;
-  }
-  return seed || 1234567;
+type TimeRange = '1d' | '1w' | '1m' | '6m' | '1y' | 'all';
+
+const RANGE_MS: Record<TimeRange, number | null> = {
+  '1d': 24 * 60 * 60 * 1000,
+  '1w': 7 * 24 * 60 * 60 * 1000,
+  '1m': 30 * 24 * 60 * 60 * 1000,
+  '6m': 180 * 24 * 60 * 60 * 1000,
+  '1y': 365 * 24 * 60 * 60 * 1000,
+  all: null,
+};
+
+function parseRange(value: string | null): TimeRange {
+  if (value && value in RANGE_MS) return value as TimeRange;
+  return 'all';
 }
 
-function rng(seedValue: number) {
-  let seed = seedValue;
-  return () => {
-    seed = (seed * 16807) % 2147483647;
-    return (seed - 1) / 2147483646;
-  };
-}
+/**
+ * Build price history from real trades + legacy transactions.
+ * Returns { points, hasRealData }.
+ * When there is no real trade data, hasRealData is false.
+ */
+function buildHistory(
+  property: PropertyRow,
+  tradeRows: TradeRow[],
+  txRows: TxRow[],
+  rangeMs: number | null,
+) {
+  const currentPrice = property.current_price ?? property.share_price;
+  const now = Date.now();
+  const cutoff = rangeMs ? now - rangeMs : 0;
 
-function clampPrice(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
+  // Merge real trades and legacy transactions into one timeline
+  const allPoints: Array<{ timestamp: string; price: number; volume: number }> = [];
 
-/** Build price history from real trades, padding with synthetic data if needed */
-function buildHistory(property: PropertyRow, tradeRows: TradeRow[]) {
-  const base = property.share_price;
-  const currentPrice = property.current_price ?? base;
-  const floor = base * 0.50;
-  const ceiling = base * 2.0;
-
-  const points: Array<{ timestamp: string; price: number; volume: number }> = [];
-
-  // Use real trades
   for (const t of tradeRows) {
-    points.push({
+    allPoints.push({
       timestamp: t.created_at,
-      price: Math.round(t.price * 100) / 100,
+      price: Number(t.price),
       volume: t.quantity,
     });
   }
 
-  // Pad with synthetic data if we have fewer than 24 points
-  if (points.length < 24) {
-    const rand = rng(seedFromId(property.id));
-    const startPrice = points.length > 0 ? points[0].price : currentPrice;
-    const startTime = points.length > 0
-      ? new Date(points[0].timestamp).getTime()
-      : Date.now();
-    const toAdd = 24 - points.length;
-
-    for (let i = toAdd; i > 0; i -= 1) {
-      const at = new Date(startTime - i * 60 * 60 * 1000);
-      const noise = (rand() - 0.5) * 0.008;
-      const candidate = clampPrice(startPrice * (1 + noise), floor, ceiling);
-      points.unshift({
-        timestamp: at.toISOString(),
-        price: Math.round(candidate * 100) / 100,
-        volume: Math.max(1, Math.round(1 + rand() * 3)),
+  // If no trades exist in the new table, fall back to legacy transactions
+  if (allPoints.length === 0) {
+    for (const tx of txRows) {
+      allPoints.push({
+        timestamp: tx.created_at,
+        price: Number(tx.price_per_share),
+        volume: tx.shares,
       });
     }
   }
 
-  return points;
+  const hasRealData = allPoints.length > 0;
+
+  // Sort chronologically
+  allPoints.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+  // Filter by time range
+  const points = rangeMs
+    ? allPoints.filter(p => new Date(p.timestamp).getTime() >= cutoff)
+    : allPoints;
+
+  // Always append a "now" point at the true current price
+  const lastPoint = points[points.length - 1];
+  if (!lastPoint || Math.abs(new Date(lastPoint.timestamp).getTime() - now) > 60_000) {
+    points.push({ timestamp: new Date(now).toISOString(), price: currentPrice, volume: 0 });
+  }
+
+  // If we only have ≤1 data point, pad so chart can render
+  if (points.length < 2) {
+    const padTime = rangeMs ? now - rangeMs : now - 24 * 60 * 60 * 1000;
+    points.unshift({
+      timestamp: new Date(padTime).toISOString(),
+      price: property.share_price,
+      volume: 0,
+    });
+  }
+
+  // Determine if there's actual data in the selected range
+  // (excluding the synthetic "now" point and padding we just added)
+  const rangeHasData = points.some(p => p.volume > 0);
+
+  return { points, hasRealData, rangeHasData };
 }
 
 /** Aggregate orders by price level for the order book display */
@@ -102,13 +133,13 @@ function aggregateOrderBook(orders: OrderRow[], property: PropertyRow, currentPr
     const remaining = o.quantity - o.filled_quantity;
     if (remaining <= 0) continue;
     const map = o.side === 'buy' ? bidMap : askMap;
-    map.set(o.price, (map.get(o.price) ?? 0) + remaining);
+    const price = Number(o.price);
+    map.set(price, (map.get(price) ?? 0) + remaining);
   }
 
   // Add property pool as an ask at current price (IPO liquidity)
   if (property.shares_available > 0) {
-    const poolPrice = currentPrice;
-    askMap.set(poolPrice, (askMap.get(poolPrice) ?? 0) + property.shares_available);
+    askMap.set(currentPrice, (askMap.get(currentPrice) ?? 0) + property.shares_available);
   }
 
   const bids: AggLevel[] = [...bidMap.entries()]
@@ -135,10 +166,13 @@ function aggregateOrderBook(orders: OrderRow[], property: PropertyRow, currentPr
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const url = new URL(request.url);
+  const range = parseRange(url.searchParams.get('range'));
+  const rangeMs = RANGE_MS[range];
 
   const { data: property, error: propertyError } = await supabase
     .from('properties')
@@ -156,8 +190,17 @@ export async function GET(
     .select('id, price, quantity, created_at')
     .eq('property_id', id)
     .order('created_at', { ascending: true })
-    .limit(200)
+    .limit(500)
     .returns<TradeRow[]>();
+
+  // Also fetch legacy transactions as fallback for history
+  const { data: txRows } = await supabase
+    .from('transactions')
+    .select('id, price_per_share, shares, created_at')
+    .eq('property_id', id)
+    .order('created_at', { ascending: true })
+    .limit(500)
+    .returns<TxRow[]>();
 
   // Fetch open/partial orders for the order book
   const { data: orderRows } = await supabase
@@ -168,18 +211,28 @@ export async function GET(
     .not('price', 'is', null)
     .returns<OrderRow[]>();
 
-  const currentPrice = property.current_price ?? property.share_price;
-  const history = buildHistory(property, tradeRows ?? []);
+  const currentPrice = Number(property.current_price ?? property.share_price);
+  const { points: history, hasRealData, rangeHasData } = buildHistory(property, tradeRows ?? [], txRows ?? [], rangeMs);
 
-  // 24h change calculation
-  const now = Date.now();
-  const dayAgo = now - 24 * 60 * 60 * 1000;
+  // Compute the timestamp of the earliest real trade (for frontend range availability)
+  const allData = (tradeRows ?? []).map(t => t.created_at);
+  if (allData.length === 0) {
+    for (const tx of (txRows ?? [])) allData.push(tx.created_at);
+  }
+  const firstTradeAt = allData.length > 0
+    ? allData.reduce((a, b) => (a < b ? a : b))
+    : null;
+
+  // 24h change: use the earliest point in the last 24h window
+  const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
   const pointsForDay = history.filter(p => new Date(p.timestamp).getTime() >= dayAgo);
-  const dayOpen = pointsForDay[0] ?? history[0] ?? { price: property.share_price };
+  const dayOpenPrice = pointsForDay.length > 0
+    ? pointsForDay[0].price
+    : history[0]?.price ?? currentPrice;
 
-  const change24hAbs = Math.round((currentPrice - dayOpen.price) * 100) / 100;
-  const change24hPct = dayOpen.price > 0
-    ? Math.round(((change24hAbs / dayOpen.price) * 100) * 100) / 100
+  const change24hAbs = Math.round((currentPrice - dayOpenPrice) * 100) / 100;
+  const change24hPct = dayOpenPrice > 0
+    ? Math.round(((change24hAbs / dayOpenPrice) * 100) * 100) / 100
     : 0;
 
   const { bids, asks } = aggregateOrderBook(orderRows ?? [], property, currentPrice);
@@ -202,6 +255,9 @@ export async function GET(
     change24hPct,
     sharesAvailable: property.shares_available,
     totalShares: property.total_shares,
+    hasRealData,
+    rangeHasData,
+    firstTradeAt,
     history,
     orderbook: {
       bids,

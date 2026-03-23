@@ -151,7 +151,7 @@ export default function PropertyDetailPage({
               <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
                 {[
                   { label: "Total Value", value: formatINR(property.total_value) },
-                  { label: "Share Price", value: formatINR(property.share_price) },
+                  { label: "Current Price", value: formatINR(property.current_price ?? property.share_price) },
                   { label: "Total Shares", value: property.total_shares.toString() },
                   { label: "Available", value: property.shares_available.toString() },
                 ].map((item) => (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -13,36 +13,73 @@ import {
 import { supabase, getAuthHeaders } from "@/lib/supabase";
 import { useAuth } from "@/app/components/AuthProvider";
 
-function buildPath(
-  points: PricePoint[],
-  width: number,
-  height: number,
-  padding: number
-) {
-  if (points.length === 0) {
-    return "";
-  }
+type TimeRange = "1d" | "1w" | "1m" | "6m" | "1y" | "all";
+const TIME_RANGES: Array<{ value: TimeRange; label: string }> = [
+  { value: "1d", label: "1D" },
+  { value: "1w", label: "1W" },
+  { value: "1m", label: "1M" },
+  { value: "6m", label: "6M" },
+  { value: "1y", label: "1Y" },
+  { value: "all", label: "All" },
+];
+
+const CHART_W = 1100;
+const CHART_H = 360;
+const CHART_PAD = 20;
+
+interface ChartPoint {
+  x: number;
+  y: number;
+  price: number;
+  timestamp: string;
+  volume: number;
+}
+
+function buildChartData(points: PricePoint[]): { path: string; coords: ChartPoint[] } {
+  if (points.length === 0) return { path: "", coords: [] };
 
   const prices = points.map((p) => p.price);
-  const minPrice = Math.min(...prices);
-  const maxPrice = Math.max(...prices);
-  const range = Math.max(1, maxPrice - minPrice);
+  let minPrice = Math.min(...prices);
+  let maxPrice = Math.max(...prices);
+  // When all points are the same price, add padding so line renders mid-chart
+  if (maxPrice - minPrice < 0.01) {
+    const mid = minPrice || 1;
+    const pad = mid * 0.02; // 2% padding
+    minPrice = mid - pad;
+    maxPrice = mid + pad;
+  }
+  const range = maxPrice - minPrice;
 
-  return points
-    .map((point, index) => {
-      const x =
-        padding +
-        (index / Math.max(points.length - 1, 1)) * (width - padding * 2);
-      const y =
-        padding + ((maxPrice - point.price) / range) * (height - padding * 2);
-      return `${index === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
+  const coords: ChartPoint[] = points.map((point, index) => {
+    const x =
+      CHART_PAD +
+      (index / Math.max(points.length - 1, 1)) * (CHART_W - CHART_PAD * 2);
+    const y =
+      CHART_PAD +
+      ((maxPrice - point.price) / range) * (CHART_H - CHART_PAD * 2);
+    return { x, y, price: point.price, timestamp: point.timestamp, volume: point.volume };
+  });
+
+  const path = coords
+    .map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(1)},${c.y.toFixed(1)}`)
     .join(" ");
+
+  return { path, coords };
 }
 
 function formatTime(iso: string) {
   const dt = new Date(iso);
   return dt.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDateTime(iso: string) {
+  const dt = new Date(iso);
+  return dt.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -73,6 +110,10 @@ export default function PropertyTradingTerminal({
   const [walletBalance, setWalletBalance] = useState(initialWalletBalance);
   const [userShares, setUserShares] = useState(0);
   const [openOrders, setOpenOrders] = useState<Order[]>([]);
+  const [selectedRange, setSelectedRange] = useState<TimeRange>("all");
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const svgRef = useRef<SVGSVGElement>(null);
 
   const { user: authUser } = useAuth();
   const userId = authUser?.id ?? null;
@@ -91,12 +132,25 @@ export default function PropertyTradingTerminal({
     } catch { /* ignore */ }
   }, [userId, propertyId]);
 
+  const fetchHoldings = useCallback(async () => {
+    if (!userId) { setUserShares(0); return; }
+    try {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch(`/api/holdings`, { headers: authHeaders });
+      if (res.ok) {
+        const rows: Array<{ property_id: string; shares_owned: number }> = await res.json();
+        const row = rows.find((h) => h.property_id === propertyId);
+        setUserShares(row?.shares_owned ?? 0);
+      }
+    } catch { /* ignore */ }
+  }, [userId, propertyId]);
+
   useEffect(() => {
     let mounted = true;
 
     async function load() {
       try {
-        const res = await fetch(`/api/properties/${propertyId}/market`, {
+        const res = await fetch(`/api/properties/${propertyId}/market?range=${selectedRange}`, {
           cache: "no-store",
         });
         const data = await res.json();
@@ -106,10 +160,13 @@ export default function PropertyTradingTerminal({
           setMarket(data);
           setError("");
         } else {
-          setError(data.error || "Unable to load market data");
+          // Only set error if we have no cached data yet
+          if (!market) {
+            setError(data.error || "Unable to load market data");
+          }
         }
       } catch {
-        if (mounted) {
+        if (mounted && !market) {
           setError("Unable to load market data");
         }
       } finally {
@@ -126,6 +183,45 @@ export default function PropertyTradingTerminal({
       mounted = false;
       clearInterval(interval);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyId, selectedRange, refreshKey]);
+
+  // Live realtime updates — subscribe to new trades on all ranges
+  useEffect(() => {
+    const channel = supabase
+      .channel(`trades-${propertyId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "trades",
+          filter: `property_id=eq.${propertyId}`,
+        },
+        (payload) => {
+          const row = payload.new as { price: number; quantity: number; created_at: string };
+          setMarket((prev) => {
+            if (!prev) return prev;
+            const newPoint: PricePoint = {
+              timestamp: row.created_at,
+              price: Number(row.price),
+              volume: row.quantity,
+            };
+            return {
+              ...prev,
+              currentPrice: Number(row.price),
+              hasRealData: true,
+              rangeHasData: true,
+              history: [...prev.history, newPoint],
+            };
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [propertyId]);
 
   useEffect(() => {
@@ -139,28 +235,50 @@ export default function PropertyTradingTerminal({
       return;
     }
 
-    supabase
-      .from("holdings")
-      .select("shares_owned")
-      .eq("user_id", userId)
-      .eq("property_id", propertyId)
-      .maybeSingle()
-      .then(({ data }) => {
-        setUserShares(data?.shares_owned ?? 0);
-      });
-
+    fetchHoldings();
     fetchOpenOrders();
-  }, [propertyId, userId, fetchOpenOrders]);
+  }, [propertyId, userId, fetchHoldings, fetchOpenOrders]);
 
   const history = useMemo(() => market?.history ?? [], [market]);
+  const hasRealData = market?.hasRealData ?? false;
+  const rangeHasData = market?.rangeHasData ?? false;
   const currentPrice = market?.currentPrice ?? fallbackPrice;
   const changePct = market?.change24hPct ?? 0;
   const changeAbs = market?.change24hAbs ?? 0;
   const isUp = changePct >= 0;
 
-  const chartPath = useMemo(() => buildPath(history, 1100, 360, 20), [
-    history,
-  ]);
+  const { path: chartPath, coords: chartCoords } = useMemo(
+    () => buildChartData(history),
+    [history],
+  );
+
+  // Hover: find the nearest chart point based on mouse X in the SVG
+  const handleChartHover = useCallback(
+    (e: React.MouseEvent<SVGSVGElement>) => {
+      if (chartCoords.length === 0 || !svgRef.current) return;
+      const rect = svgRef.current.getBoundingClientRect();
+      const mouseX = ((e.clientX - rect.left) / rect.width) * CHART_W;
+      let closest = 0;
+      let closestDist = Infinity;
+      for (let i = 0; i < chartCoords.length; i++) {
+        const d = Math.abs(chartCoords[i].x - mouseX);
+        if (d < closestDist) {
+          closestDist = d;
+          closest = i;
+        }
+      }
+      setHoverIndex(closest);
+    },
+    [chartCoords],
+  );
+
+  const hoverPoint = hoverIndex !== null ? chartCoords[hoverIndex] : null;
+  const hoverChange = hoverPoint && chartCoords.length > 0
+    ? hoverPoint.price - chartCoords[0].price
+    : 0;
+  const hoverChangePct = hoverPoint && chartCoords.length > 0 && chartCoords[0].price > 0
+    ? (hoverChange / chartCoords[0].price) * 100
+    : 0;
   const maxDepth = useMemo(() => {
     if (!market) return 1;
     const quantities = [
@@ -211,18 +329,25 @@ export default function PropertyTradingTerminal({
         const data = await res.json();
 
         if (res.ok && data.success) {
-          setTradeSuccess(true);
-          if (data.newWalletBalance != null) setWalletBalance(data.newWalletBalance);
-          if (tab === "buy" && data.filledQuantity > 0) {
-            setUserShares((prev) => prev + data.filledQuantity);
+          if (data.filledQuantity === 0) {
+            setTradeError(`No liquidity — your limit ${tab} order is resting on the book`);
+            fetchOpenOrders();
+          } else {
+            setTradeSuccess(true);
+            if (data.newWalletBalance != null) setWalletBalance(data.newWalletBalance);
+            if (tab === "buy" && data.filledQuantity > 0) {
+              setUserShares((prev) => prev + data.filledQuantity);
+            }
+            if (tab === "sell" && data.filledQuantity > 0) {
+              setUserShares((prev) => prev - data.filledQuantity);
+            }
+            setShares(1);
+            setPriceLimit("");
+            fetchOpenOrders();
+            fetchHoldings();
+            setRefreshKey((k) => k + 1);
+            setTimeout(() => setTradeSuccess(false), 3000);
           }
-          if (tab === "sell" && data.filledQuantity > 0) {
-            setUserShares((prev) => prev - data.filledQuantity);
-          }
-          setShares(1);
-          setPriceLimit("");
-          fetchOpenOrders();
-          setTimeout(() => setTradeSuccess(false), 3000);
         } else {
           setTradeError(data.error || `${tab} failed`);
         }
@@ -237,23 +362,29 @@ export default function PropertyTradingTerminal({
         const data = await res.json();
 
         if (res.ok && data.success) {
-          setTradeSuccess(true);
-          if (data.newWalletBalance != null) setWalletBalance(data.newWalletBalance);
-          if (tab === "buy") {
-            const filled = data.filledQuantity ?? shares;
-            setUserShares((prev) => prev + filled);
-            if (property && data.sharesRemaining != null) {
-              property.shares_available = data.sharesRemaining;
+          const filled = data.filledQuantity ?? shares;
+          if (filled === 0) {
+            setTradeError(`No liquidity available for market ${tab}`);
+            if (data.newWalletBalance != null) setWalletBalance(data.newWalletBalance);
+          } else {
+            setTradeSuccess(true);
+            if (data.newWalletBalance != null) setWalletBalance(data.newWalletBalance);
+            if (tab === "buy") {
+              setUserShares((prev) => prev + filled);
+              if (property && data.sharesRemaining != null) {
+                property.shares_available = data.sharesRemaining;
+              }
             }
+            if (tab === "sell") {
+              setUserShares((prev) => prev - filled);
+            }
+            setShares(1);
+            setPriceLimit("");
+            fetchOpenOrders();
+            fetchHoldings();
+            setRefreshKey((k) => k + 1);
+            setTimeout(() => setTradeSuccess(false), 3000);
           }
-          if (tab === "sell") {
-            const filled = data.filledQuantity ?? shares;
-            setUserShares((prev) => prev - filled);
-          }
-          setShares(1);
-          setPriceLimit("");
-          fetchOpenOrders();
-          setTimeout(() => setTradeSuccess(false), 3000);
         } else {
           setTradeError(data.error || `${tab} failed`);
         }
@@ -305,37 +436,129 @@ export default function PropertyTradingTerminal({
         </div>
       </div>
 
-      {loading ? (
+      {loading && !market ? (
         <p className="mt-6 text-sm text-landly-slate">Loading chart…</p>
-      ) : error ? (
+      ) : error && !market ? (
         <p className="mt-6 text-sm text-landly-red">{error}</p>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
           {/* left: chart */}
           <div className="overflow-hidden rounded-(--radius-land) bg-landly-navy/80 p-3">
-            <svg viewBox="0 0 1100 360" className="h-96 w-full">
-              <defs>
-                <linearGradient id="tradingLine" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor="#f59e0b" />
-                  <stop offset="100%" stopColor="#10b981" />
-                </linearGradient>
-              </defs>
-              <path
-                d={chartPath}
-                fill="none"
-                stroke="url(#tradingLine)"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              />
-            </svg>
-            <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-landly-slate">
-              <span>{history[0] ? formatTime(history[0].timestamp) : "-"}</span>
-              <span>
-                {history[history.length - 1]
-                  ? formatTime(history[history.length - 1].timestamp)
-                  : "-"}
-              </span>
+            {/* time range filters */}
+            <div className="mb-3 flex gap-1">
+              {TIME_RANGES.map((r) => (
+                <button
+                  key={r.value}
+                  onClick={() => { setSelectedRange(r.value); setHoverIndex(null); }}
+                  className={`rounded px-3 py-1 text-[10px] font-semibold uppercase tracking-wider transition-all ${
+                    selectedRange === r.value
+                      ? "bg-landly-gold text-landly-navy-deep"
+                      : "text-landly-slate hover:text-landly-offwhite"
+                  }`}
+                >
+                  {r.label}
+                  {selectedRange === r.value && (
+                    <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-landly-green animate-pulse" />
+                  )}
+                </button>
+              ))}
             </div>
+
+            {!hasRealData || !rangeHasData ? (
+              <div className="flex h-96 w-full items-center justify-center">
+                <div className="text-center">
+                  <svg className="mx-auto mb-3 h-12 w-12 text-landly-slate/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                  </svg>
+                  <p className="text-sm font-semibold text-landly-slate">Graph not available</p>
+                  <p className="mt-1 text-xs text-landly-slate/60">
+                    {!hasRealData
+                      ? "No trade data yet for this property"
+                      : "No trades in the selected time range"}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Hover info bar */}
+                <div className="mb-1 flex items-center gap-3 h-5">
+                  {hoverPoint ? (
+                    <>
+                      <span className="font-mono text-sm font-semibold text-landly-offwhite">
+                        {formatINR(hoverPoint.price)}
+                      </span>
+                      <span
+                        className={`font-mono text-xs font-semibold ${
+                          hoverChange >= 0 ? "text-landly-green" : "text-landly-red"
+                        }`}
+                      >
+                        {hoverChange >= 0 ? "+" : ""}
+                        {formatINR(hoverChange)} ({hoverChangePct >= 0 ? "+" : ""}
+                        {hoverChangePct.toFixed(2)}%)
+                      </span>
+                      <span className="text-[10px] text-landly-slate">
+                        {formatDateTime(hoverPoint.timestamp)}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-[10px] text-landly-slate/50">Hover over chart for details</span>
+                  )}
+                </div>
+
+                <svg
+                  ref={svgRef}
+                  viewBox={`0 0 ${CHART_W} ${CHART_H}`}
+                  className="h-96 w-full cursor-crosshair"
+                  onMouseMove={handleChartHover}
+                  onMouseLeave={() => setHoverIndex(null)}
+                >
+                  <defs>
+                    <linearGradient id="tradingLine" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#f59e0b" />
+                      <stop offset="100%" stopColor="#10b981" />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    d={chartPath}
+                    fill="none"
+                    stroke="url(#tradingLine)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  />
+                  {/* Hover crosshair + dot */}
+                  {hoverPoint && (
+                    <>
+                      <line
+                        x1={hoverPoint.x}
+                        y1={CHART_PAD}
+                        x2={hoverPoint.x}
+                        y2={CHART_H - CHART_PAD}
+                        stroke="#94a3b8"
+                        strokeWidth="1"
+                        strokeDasharray="4 3"
+                        opacity="0.4"
+                      />
+                      <circle
+                        cx={hoverPoint.x}
+                        cy={hoverPoint.y}
+                        r="5"
+                        fill="#f59e0b"
+                        stroke="#1e293b"
+                        strokeWidth="2"
+                      />
+                    </>
+                  )}
+                </svg>
+                <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-landly-slate">
+                  <span>{history[0] ? formatTime(history[0].timestamp) : "-"}</span>
+                  <span>
+                    {history[history.length - 1]
+                      ? formatTime(history[history.length - 1].timestamp)
+                      : "-"}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
 
           {/* right: buy/sell ticket */}
