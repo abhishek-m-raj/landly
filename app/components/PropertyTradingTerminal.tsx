@@ -118,6 +118,7 @@ export default function PropertyTradingTerminal({
   const [priceLimit, setPriceLimit] = useState<string>("");
   const [trading, setTrading] = useState(false);
   const [tradeError, setTradeError] = useState("");
+  const [tradeInfo, setTradeInfo] = useState("");
   const [tradeSuccess, setTradeSuccess] = useState(false);
 
   const [walletBalance, setWalletBalance] = useState(initialWalletBalance);
@@ -332,85 +333,51 @@ export default function PropertyTradingTerminal({
     if (!canExecute || !userId) return;
     setTrading(true);
     setTradeError("");
+    setTradeInfo("");
 
     try {
       const authHeaders = await getAuthHeaders();
+      const orderType = isLimitOrder ? "limit" : "market";
 
-      if (isLimitOrder) {
-        // Use the orders endpoint for limit orders
-        const res = await fetch("/api/orders", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders },
-          body: JSON.stringify({
-            propertyId,
-            side: tab,
-            orderType: "limit",
-            price: Number(priceLimit),
-            quantity: shares,
-          }),
-        });
-        const data = await res.json();
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({
+          propertyId,
+          side: tab,
+          orderType,
+          price: isLimitOrder ? Number(priceLimit) : undefined,
+          quantity: shares,
+        }),
+      });
+      const data = await res.json();
 
-        if (res.ok && data.success) {
-          if (data.filledQuantity === 0) {
-            setTradeError(`No liquidity — your limit ${tab} order is resting on the book`);
-            fetchOpenOrders();
+      if (res.ok && data.success) {
+        if (data.filledQuantity === 0) {
+          if (isLimitOrder) {
+            setTradeInfo(`Your limit ${tab} order is on the book — it will fill when a match arrives`);
           } else {
-            setTradeSuccess(true);
-            if (data.newWalletBalance != null) setWalletBalance(data.newWalletBalance);
-            if (tab === "buy" && data.filledQuantity > 0) {
-              setUserShares((prev) => prev + data.filledQuantity);
-            }
-            if (tab === "sell" && data.filledQuantity > 0) {
-              setUserShares((prev) => prev - data.filledQuantity);
-            }
-            setShares(1);
-            setPriceLimit("");
-            fetchOpenOrders();
-            fetchHoldings();
-            setRefreshKey((k) => k + 1);
-            setTimeout(() => setTradeSuccess(false), 3000);
+            setTradeError(`No liquidity available for market ${tab}`);
           }
+          fetchOpenOrders();
         } else {
-          setTradeError(data.error || `${tab} failed`);
+          setTradeSuccess(true);
+          if (data.newWalletBalance != null) setWalletBalance(data.newWalletBalance);
+          if (tab === "buy" && data.filledQuantity > 0) {
+            setUserShares((prev) => prev + data.filledQuantity);
+          }
+          if (tab === "sell" && data.filledQuantity > 0) {
+            setUserShares((prev) => prev - data.filledQuantity);
+          }
+          setShares(1);
+          setPriceLimit("");
+          fetchOpenOrders();
+          fetchHoldings();
+          setRefreshKey((k) => k + 1);
+          setTimeout(() => setTradeSuccess(false), 3000);
         }
       } else {
-        // Use market order endpoints for backward compat
-        const endpoint = tab === "buy" ? "/api/buy-shares" : "/api/sell-shares";
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders },
-          body: JSON.stringify({ propertyId, shares }),
-        });
-        const data = await res.json();
-
-        if (res.ok && data.success) {
-          const filled = data.filledQuantity ?? shares;
-          if (filled === 0) {
-            setTradeError(`No liquidity available for market ${tab}`);
-            if (data.newWalletBalance != null) setWalletBalance(data.newWalletBalance);
-          } else {
-            setTradeSuccess(true);
-            if (data.newWalletBalance != null) setWalletBalance(data.newWalletBalance);
-            if (tab === "buy") {
-              setUserShares((prev) => prev + filled);
-              if (property && data.sharesRemaining != null) {
-                property.shares_available = data.sharesRemaining;
-              }
-            }
-            if (tab === "sell") {
-              setUserShares((prev) => prev - filled);
-            }
-            setShares(1);
-            setPriceLimit("");
-            fetchOpenOrders();
-            fetchHoldings();
-            setRefreshKey((k) => k + 1);
-            setTimeout(() => setTradeSuccess(false), 3000);
-          }
-        } else {
-          setTradeError(data.error || `${tab} failed`);
-        }
+        setTradeError(data.error || `${tab} failed`);
       }
     } catch {
       setTradeError("Network error. Please try again.");
@@ -737,6 +704,12 @@ export default function PropertyTradingTerminal({
                 <div className="rounded-(--radius-land) border border-landly-red/30 bg-landly-red/10 px-3 py-2">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-landly-red">Trade Error</p>
                   <p className="mt-1 text-xs text-landly-red">{tradeError}</p>
+                </div>
+              )}
+              {tradeInfo && (
+                <div className="rounded-(--radius-land) border border-landly-gold/30 bg-landly-gold/10 px-3 py-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-landly-gold">Order Placed</p>
+                  <p className="mt-1 text-xs text-landly-gold">{tradeInfo}</p>
                 </div>
               )}
 

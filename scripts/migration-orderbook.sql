@@ -70,7 +70,32 @@ CREATE POLICY "Anyone can view trades for market data" ON trades FOR SELECT USIN
 -- See: supabase/migrations/*_add_cancel_order_function.sql
 
 -- ============================================================
--- 5. insert_test_trades() — Admin test data injection
+-- 4. add_sell_pool_buyback — Sell-side pool liquidity
+-- ============================================================
+-- Adds symmetric pool buyback to sell side of place_order().
+-- When a sell order can't match resting buy orders, shares go
+-- back to the property pool at market price. If owner_id exists
+-- the owner funds it; for platform-seeded properties (owner_id
+-- IS NULL) the platform absorbs the cost — symmetric with buy
+-- side where pool sells without an owner receiving funds.
+-- See: supabase/migrations/*_add_sell_pool_buyback.sql
+-- Fixed: supabase/migrations/*_fix_sell_pool_buyback_no_owner.sql
+-- Fixed: supabase/migrations/*_make_buyer_id_nullable_for_pool_buyback.sql
+
+-- ============================================================
+-- 5. Supply-demand pricing for pool trades
+-- ============================================================
+-- After every pool trade (buy-from-pool or sell-to-pool),
+-- current_price is recalculated using a quadratic supply curve:
+--   price = share_price * (1 + MAX_IMPACT * (sold_fraction ^ 2))
+-- where sold_fraction = (listed_shares - shares_available) / listed_shares
+-- MAX_IMPACT = 1.0  →  price can at most 2× the IPO share_price
+-- Buying from pool reduces supply → price rises
+-- Selling to pool increases supply → price drops
+-- See: supabase/migrations/*_add_supply_demand_pricing.sql
+
+-- ============================================================
+-- 6. insert_test_trades() — Admin test data injection
 -- ============================================================
 -- See: supabase/migrations/*_add_insert_test_trades_function.sql
 -- SECURITY DEFINER function that bypasses RLS to insert synthetic trades.
